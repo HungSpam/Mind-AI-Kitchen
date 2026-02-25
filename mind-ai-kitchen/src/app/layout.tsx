@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
     description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
-    url: "https://mind-ai-kitchen.vercel.app", // Sau này sếp thay link thật vào đây
+    url: "https://mind-ai-kitchen.vercel.app",
     siteName: "Mind AI Kitchen",
     images: [
       {
-        url: "/opengraph-image.png", // Next.js tự động tìm file này
+        url: "/opengraph-image.png",
         width: 1200,
         height: 630,
         alt: "Mind AI Kitchen Banner",
