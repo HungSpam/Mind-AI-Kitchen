@@ -16,6 +16,22 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
   description: "Trợ lý dinh dưỡng và nấu ăn cá nhân hóa với AI",
+  openGraph: {
+    title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
+    description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
+    url: "https://mind-ai-kitchen.vercel.app", // Sau này sếp thay link thật vào đây
+    siteName: "Mind AI Kitchen",
+    images: [
+      {
+        url: "/opengraph-image.png", // Next.js tự động tìm file này
+        width: 1200,
+        height: 630,
+        alt: "Mind AI Kitchen Banner",
+      },
+    ],
+    locale: "vi_VN",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
