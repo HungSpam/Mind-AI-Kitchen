@@ -8,26 +8,25 @@ import { useAppStore } from "@/store/useAppStore";
 
 // ── Keyword Matching ──────────────────────────────────────────────
 const NEXT_KEYWORDS = [
-    "tiếp", "tới", "sau", "qua", "tiến", "kế",
-    "next", "okay", "ok",
+    "next",
     "bước tiếp", "tiếp theo", "tiếp tục", "tiếp đi",
-    "sau đó", "rồi sao", "rồi gì", "gì nữa", "gì tiếp",
+    "rồi sao", "rồi gì", "gì nữa", "gì tiếp",
     "xong rồi", "được rồi", "làm gì tiếp", "làm gì nữa",
-    "còn gì", "còn nữa",
+    "sang bước", "chuyển bước", "qua bước", "làm tiếp",
+    "bước sau", "tiếp đến", "ok rồi", "xong bước này", "bước kế",
 ];
 const PREV_KEYWORDS = [
-    "trước", "lùi", "quay", "lui", "back",
-    "quay lại", "lùi lại", "bước trước",
-    "làm lại", "lại bước", "lại đi",
-    "về lại", "quay về", "lùi về",
-    "quên", "nhầm", "sai rồi",
+    "back",
+    "quay lại", "lùi lại", "bước trước", "trở lại",
+    "về lại", "quay về", "lùi về", "quay lui",
+    "sai rồi", "nhầm rồi", "bước vừa rồi", "về bước",
 ];
 const REPEAT_KEYWORDS = [
     "đọc lại", "nghe lại", "nhắc lại", "lặp lại", "nói lại",
-    "repeat", "đọc đi",
-    "chưa nghe", "không nghe", "nghe không rõ",
-    "nói lại đi", "đọc lại đi", "nhanh quá",
-    "gì vậy", "hả gì", "cái gì",
+    "repeat",
+    "chưa nghe", "nghe không rõ", "nghe chưa kịp", "chưa nghe kịp",
+    "nói lại đi", "đọc lại đi", "nhanh quá", "sao cơ",
+    "vừa nói gì", "nói lại coi", "đọc lại coi",
 ];
 
 function matchCommand(transcript: string): "next" | "prev" | "repeat" | null {
@@ -323,7 +322,7 @@ export default function CookingModePage() {
                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 liquid-glass-item px-5 py-2.5 rounded-full border border-blue-300/40 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-                                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{voiceFeedback}</span>
+                                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">{voiceFeedback}</span>
                             </div>
                         </div>
                     )}
