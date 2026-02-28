@@ -122,13 +122,13 @@ export default function CookingModePage() {
     }, [currentStep, steps, speak]);
 
     // ── Voice Command Processing ──
-    const commandHandlerRef = useRef<(transcript: string) => void>(() => { });
+    const commandHandlerRef = useRef<(transcript: string) => boolean>(() => false);
 
     useEffect(() => {
         commandHandlerRef.current = (transcript: string) => {
             setLastTranscript(transcript);
             const command = matchCommand(transcript);
-            if (!command) return;
+            if (!command) return false;
 
             if (command === "next") {
                 if (currentStep < steps.length - 1) {
@@ -148,6 +148,7 @@ export default function CookingModePage() {
                 showFeedback("Đọc lại cho bạn nghe nhé...");
                 handleRepeat();
             }
+            return true;
         };
     }, [currentStep, steps, handleNext, handlePrev, handleRepeat, showFeedback, router]);
 
@@ -182,48 +183,54 @@ export default function CookingModePage() {
 
         let cancelled = false;
 
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-                stream.getTracks().forEach(t => t.stop());
+        const recognition = new SpeechRecognitionClass();
+        recognition.lang = "vi-VN";
+        recognition.continuous = true;
+        // CRITICAL FOR IOS: enable interim results because iOS sometimes never fires isFinal=true
+        // We parse early, match the command, then manually stop() to clear buffer.
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
 
-                if (cancelled) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onresult = (event: any) => {
+            if (isMutedRef.current) return;
 
-                const recognition = new SpeechRecognitionClass();
-                recognition.lang = "vi-VN";
-                recognition.continuous = true;
-                recognition.interimResults = false;
-                recognition.maxAlternatives = 1;
+            let currentTranscript = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                currentTranscript += event.results[i][0].transcript + " ";
+            }
 
-                recognition.onresult = (event: { results: { length: number;[key: number]: { isFinal: boolean;[key: number]: { transcript: string } } } }) => {
-                    const last = event.results[event.results.length - 1];
-                    if (last.isFinal) {
-                        const transcript = last[0].transcript;
-                        if (!isMutedRef.current) {
-                            commandHandlerRef.current(transcript);
-                        }
-                    }
-                };
+            const matched = commandHandlerRef.current(currentTranscript);
+            if (matched) {
+                // Command executed! Stop mic immediately to clear the transcript buffer.
+                // The onend handler will restart it automatically if user hasn't turned off mic.
+                try { recognition.stop(); } catch { /* safe */ }
+            }
+        };
 
-                recognition.onerror = (event: { error: string }) => {
-                    if (event.error === "no-speech" || event.error === "aborted") return;
-                    console.warn("SpeechRecognition error:", event.error);
-                };
-
-                recognition.onend = () => {
-                    if (cancelled) return;
-                    if (isMutedRef.current) return;
-                    try { recognition.start(); } catch { /* already running */ }
-                };
-
-                recognitionRef.current = recognition;
-                try { recognition.start(); } catch { /* safe */ }
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                console.error("Mic permission denied:", err);
-                setMicError("Vui lòng cho phép sử dụng micro");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onerror = (event: any) => {
+            if (event.error === "no-speech" || event.error === "aborted") return;
+            if (event.error === "not-allowed") {
+                setMicError("Vui lòng cho phép sử dụng micro trong cài đặt Safari");
                 setIsListening(false);
-            });
+            }
+            console.warn("SpeechRecognition error:", event.error);
+        };
+
+        recognition.onend = () => {
+            if (cancelled) return;
+            if (isMutedRef.current) return; // TTS is speaking, don't restart
+            try { recognition.start(); } catch { /* already running */ }
+        };
+
+        recognitionRef.current = recognition;
+        try {
+            recognition.start();
+        } catch {
+            setMicError("Không thể bật micro.");
+            setIsListening(false);
+        }
 
         return () => {
             cancelled = true;
