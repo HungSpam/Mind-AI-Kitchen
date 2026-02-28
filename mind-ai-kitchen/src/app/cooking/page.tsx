@@ -6,15 +6,14 @@ import { ChevronLeft, Volume2, VolumeX, CheckCircle, ArrowRight, ArrowLeft, Mic,
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/useAppStore";
 
-type SpeechRecognitionAny = any;
-
+// ── Keyword Matching ──────────────────────────────────────────────
 const NEXT_KEYWORDS = [
     "tiếp", "tới", "sau", "qua", "tiến", "kế",
-    "next", "okay", "ok", "ước",
+    "next", "okay", "ok",
     "bước tiếp", "tiếp theo", "tiếp tục", "tiếp đi",
     "sau đó", "rồi sao", "rồi gì", "gì nữa", "gì tiếp",
     "xong rồi", "được rồi", "làm gì tiếp", "làm gì nữa",
-    "chưa", "còn gì", "còn nữa",
+    "còn gì", "còn nữa",
 ];
 const PREV_KEYWORDS = [
     "trước", "lùi", "quay", "lui", "back",
@@ -25,237 +24,209 @@ const PREV_KEYWORDS = [
 ];
 const REPEAT_KEYWORDS = [
     "đọc lại", "nghe lại", "nhắc lại", "lặp lại", "nói lại",
-    "repeat", "lại đi", "đọc đi",
+    "repeat", "đọc đi",
     "chưa nghe", "không nghe", "nghe không rõ",
     "nói lại đi", "đọc lại đi", "nhanh quá",
     "gì vậy", "hả gì", "cái gì",
 ];
-const DONE_KEYWORDS = [
-    "hoàn thành", "kết thúc", "done", "finish",
-    "xong hết", "xong bữa", "xong rồi",
-    "hết rồi", "ngon rồi",
-];
 
-function matchCommand(transcript: string): "next" | "prev" | "repeat" | "done" | null {
+function matchCommand(transcript: string): "next" | "prev" | "repeat" | null {
     const normalized = transcript.toLowerCase().trim();
-
     if (REPEAT_KEYWORDS.some(kw => normalized.includes(kw))) return "repeat";
-    if (DONE_KEYWORDS.some(kw => normalized.includes(kw))) return "done";
     if (PREV_KEYWORDS.some(kw => normalized.includes(kw))) return "prev";
     if (NEXT_KEYWORDS.some(kw => normalized.includes(kw))) return "next";
-
     return null;
 }
 
+// ── TTS Helper ────────────────────────────────────────────────────
+function speakVietnamese(text: string, onEnd?: () => void) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "vi-VN";
+    utterance.rate = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const viVoice = voices.find(v =>
+        v.lang.toLowerCase().includes("vi") ||
+        v.name.toLowerCase().includes("vietnamese") ||
+        v.name.toLowerCase().includes("viet")
+    );
+    if (viVoice) utterance.voice = viVoice;
+
+    if (onEnd) {
+        utterance.onend = onEnd;
+        utterance.onerror = onEnd;
+    }
+
+    window.speechSynthesis.speak(utterance);
+}
+
+// ── Page Component ────────────────────────────────────────────────
 export default function CookingModePage() {
     const router = useRouter();
     const { currentRecipe: recipe } = useAppStore();
 
     useEffect(() => {
-        if (!recipe) {
-            router.push("/scan");
-        }
+        if (!recipe) router.push("/scan");
     }, [recipe, router]);
 
+    // ── Core State ──
     const [currentStep, setCurrentStep] = useState(0);
     const [isAudioPlaying, setIsAudioPlaying] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
     const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
     const [lastTranscript, setLastTranscript] = useState("");
-    const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
-    const recognitionRef = useRef<SpeechRecognitionAny>(null);
-    const isListeningRef = useRef(false);
-    const isTTSSpeakingRef = useRef(false);
-    const startListeningRef = useRef<(() => void) | undefined>(undefined);
+    const [micError, setMicError] = useState<string | null>(null);
+
+    // ── Refs ──
+    const recognitionRef = useRef<any>(null);
+    const isMutedRef = useRef(false);
 
     const recipeName = recipe?.name || "";
     const steps = recipe?.steps || [];
 
+    useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
     const handleNext = useCallback(() => {
-        if (currentStep < steps.length - 1) {
-            setCurrentStep(curr => curr + 1);
-        }
+        if (currentStep < steps.length - 1) setCurrentStep(s => s + 1);
     }, [currentStep, steps.length]);
 
     const handlePrev = useCallback(() => {
-        if (currentStep > 0) {
-            setCurrentStep(curr => curr - 1);
-        }
+        if (currentStep > 0) setCurrentStep(s => s - 1);
     }, [currentStep]);
 
-    const handleRepeat = useCallback(() => {
-        if (typeof window !== "undefined" && "speechSynthesis" in window && steps[currentStep]) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(steps[currentStep].text);
-            utterance.lang = "vi-VN";
-            utterance.rate = 1.0;
-            const voices = window.speechSynthesis.getVoices();
-            const viVoice = voices.find(voice =>
-                voice.lang.toLowerCase().includes('vi') ||
-                voice.name.toLowerCase().includes('vietnamese')
-            );
-            if (viVoice) utterance.voice = viVoice;
-
-            const resumeAfterRepeat = () => {
-                if (!isTTSSpeakingRef.current) return;
-                isTTSSpeakingRef.current = false;
-                if (isListeningRef.current) {
-                    setTimeout(() => startListeningRef.current?.(), 800);
-                }
-            };
-            utterance.onend = () => resumeAfterRepeat();
-            utterance.onerror = () => resumeAfterRepeat();
-
-            window.speechSynthesis.speak(utterance);
-            setIsAudioPlaying(true);
-
-            const textLen = steps[currentStep].text.length;
-            const fallbackMs = Math.max(textLen * 80, 3000) + 3000;
-            setTimeout(() => {
-                if (isTTSSpeakingRef.current) resumeAfterRepeat();
-            }, fallbackMs);
-        }
-    }, [currentStep, steps]);
-
-    const showFeedback = useCallback((message: string) => {
-        setVoiceFeedback(message);
+    const showFeedback = useCallback((msg: string) => {
+        setVoiceFeedback(msg);
         setTimeout(() => setVoiceFeedback(null), 2000);
     }, []);
 
-    const killMic = useCallback(() => {
+    const speak = useCallback((text: string) => {
+        setIsMuted(true);
+        setIsAudioPlaying(true);
         if (recognitionRef.current) {
-            try { recognitionRef.current.abort(); } catch { /* safe */ }
-            recognitionRef.current = null;
+            try { recognitionRef.current.stop(); } catch { /* safe */ }
         }
+        speakVietnamese(text, () => {
+            setIsMuted(false);
+            if (recognitionRef.current) {
+                try { recognitionRef.current.start(); } catch { /* safe */ }
+            }
+        });
     }, []);
 
-    const restartMic = useCallback(() => {
-        killMic();
-        isTTSSpeakingRef.current = false;
-        setTimeout(() => startListeningRef.current?.(), 200);
-    }, [killMic]);
+    const handleRepeat = useCallback(() => {
+        if (steps[currentStep]) speak(steps[currentStep].text);
+    }, [currentStep, steps, speak]);
 
-    /**
-     * FLOW (user-specified):
-     * 1. Mic hears ANYTHING -> always kill mic first
-     * 2. Check keyword:
-     *    - NO match  -> kill mic -> create new mic immediately
-     *    - YES match -> kill mic -> execute action -> TTS reads -> TTS done -> create new mic
-     * 3. For "repeat": kill mic -> TTS reads current step -> TTS done -> create new mic
-     */
-    const processVoiceCommand = useCallback((transcript: string) => {
-        setLastTranscript(transcript);
-        const command = matchCommand(transcript);
+    // ── Voice Command Processing ──
+    const commandHandlerRef = useRef<(transcript: string) => void>(() => { });
 
-        killMic();
+    useEffect(() => {
+        commandHandlerRef.current = (transcript: string) => {
+            setLastTranscript(transcript);
+            const command = matchCommand(transcript);
+            if (!command) return;
 
-        if (!command) {
-            restartMic();
+            if (command === "next") {
+                if (currentStep < steps.length - 1) {
+                    showFeedback("Chuyển bước tiếp theo...");
+                    handleNext();
+                } else {
+                    showFeedback("Đây là bước cuối rồi!");
+                }
+            } else if (command === "prev") {
+                if (currentStep > 0) {
+                    showFeedback("Quay lại bước trước...");
+                    handlePrev();
+                } else {
+                    showFeedback("Đang ở bước đầu tiên!");
+                }
+            } else if (command === "repeat") {
+                showFeedback("Đọc lại cho bạn nghe nhé...");
+                handleRepeat();
+            }
+        };
+    }, [currentStep, steps, handleNext, handlePrev, handleRepeat, showFeedback, router]);
+
+    // ── TTS auto-play on step change ──
+    useEffect(() => {
+        if (isAudioPlaying && steps[currentStep]) {
+            speak(steps[currentStep].text);
+        }
+        return () => { window.speechSynthesis?.cancel(); };
+    }, [currentStep, isAudioPlaying, steps, speak]);
+
+    // ── SpeechRecognition Lifecycle ──
+    useEffect(() => {
+        if (!isListening) {
+            if (recognitionRef.current) {
+                try { recognitionRef.current.abort(); } catch { /* safe */ }
+                recognitionRef.current = null;
+            }
+            setIsMuted(false);
+            setMicError(null);
             return;
         }
-        isTTSSpeakingRef.current = true;
-        setIsTTSSpeaking(true);
-
-        if (command === "next") {
-            if (currentStep < steps.length - 1) {
-                showFeedback("Chuyển bước tiếp theo...");
-                setTimeout(handleNext, 400);
-            } else {
-                showFeedback("Đây là bước cuối rồi!");
-                setTimeout(() => restartMic(), 1500);
-            }
-        } else if (command === "prev") {
-            if (currentStep > 0) {
-                showFeedback("Quay lại bước trước...");
-                setTimeout(handlePrev, 400);
-            } else {
-                showFeedback("Đang ở bước đầu tiên!");
-                setTimeout(() => restartMic(), 1500);
-            }
-        } else if (command === "repeat") {
-            showFeedback("Đọc lại cho bạn nghe nhé...");
-            setTimeout(handleRepeat, 400);
-        } else if (command === "done") {
-            if (currentStep === steps.length - 1) {
-                showFeedback("Hoàn thành! Chúc ngon miệng!");
-                setTimeout(() => router.push("/"), 1500);
-            } else {
-                showFeedback("Vẫn còn bước nữa, tiếp nhé!");
-                setTimeout(() => restartMic(), 1500);
-            }
-        }
-    }, [currentStep, steps.length, handleNext, handlePrev, handleRepeat, showFeedback, router, killMic, restartMic]);
-
-    const startListening = useCallback(() => {
-        if (isTTSSpeakingRef.current) return;
-        if (!isListeningRef.current) return;
 
         const SpeechRecognitionClass = (window as any).SpeechRecognition
             || (window as any).webkitSpeechRecognition;
 
         if (!SpeechRecognitionClass) {
-            showFeedback("Trình duyệt chưa hỗ trợ giọng nói");
+            setMicError("Trình duyệt không hỗ trợ giọng nói");
             setIsListening(false);
             return;
         }
 
-        if (recognitionRef.current) {
-            try { recognitionRef.current.abort(); } catch { /* safe */ }
-            recognitionRef.current = null;
-        }
+        let cancelled = false;
 
-        const recognition = new SpeechRecognitionClass();
-        recognition.lang = "vi-VN";
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then((stream) => {
+                stream.getTracks().forEach(t => t.stop());
 
-        recognition.onresult = (event: any) => {
-            const last = event.results[event.results.length - 1];
-            if (last.isFinal) {
-                const transcript = last[0].transcript;
-                if (!isTTSSpeakingRef.current) {
-                    processVoiceCommand(transcript);
-                }
-            }
-        };
+                if (cancelled) return;
 
-        recognition.onerror = (event: any) => {
-            if (event.error === "no-speech" || event.error === "aborted") {
-                setTimeout(() => startListeningRef.current?.(), 200);
-                return;
-            }
-            console.error("Speech error:", event.error);
-            setTimeout(() => startListeningRef.current?.(), 500);
-        };
+                const recognition = new SpeechRecognitionClass();
+                recognition.lang = "vi-VN";
+                recognition.continuous = true;
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
 
-        recognition.onend = () => {
-            setTimeout(() => startListeningRef.current?.(), 200);
-        };
+                recognition.onresult = (event: { results: { length: number;[key: number]: { isFinal: boolean;[key: number]: { transcript: string } } } }) => {
+                    const last = event.results[event.results.length - 1];
+                    if (last.isFinal) {
+                        const transcript = last[0].transcript;
+                        if (!isMutedRef.current) {
+                            commandHandlerRef.current(transcript);
+                        }
+                    }
+                };
 
-        recognitionRef.current = recognition;
-        try {
-            recognition.start();
-            setIsTTSSpeaking(false);
-        } catch { /* safe */ }
-    }, [processVoiceCommand, showFeedback]);
-    useEffect(() => {
-        startListeningRef.current = startListening;
-    }, [startListening]);
+                recognition.onerror = (event: { error: string }) => {
+                    if (event.error === "no-speech" || event.error === "aborted") return;
+                    console.warn("SpeechRecognition error:", event.error);
+                };
 
-    useEffect(() => {
-        isListeningRef.current = isListening;
+                recognition.onend = () => {
+                    if (cancelled) return;
+                    if (isMutedRef.current) return;
+                    try { recognition.start(); } catch { /* already running */ }
+                };
 
-        if (isListening) {
-            startListeningRef.current?.();
-        } else {
-            if (recognitionRef.current) {
-                try { recognitionRef.current.abort(); } catch { /* safe */ }
-                recognitionRef.current = null;
-            }
-        }
+                recognitionRef.current = recognition;
+                try { recognition.start(); } catch { /* safe */ }
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.error("Mic permission denied:", err);
+                setMicError("Vui lòng cho phép sử dụng micro");
+                setIsListening(false);
+            });
 
         return () => {
+            cancelled = true;
             if (recognitionRef.current) {
                 try { recognitionRef.current.abort(); } catch { /* safe */ }
                 recognitionRef.current = null;
@@ -263,75 +234,14 @@ export default function CookingModePage() {
         };
     }, [isListening]);
 
-    useEffect(() => {
-        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-        window.speechSynthesis.cancel();
-
-        if (isAudioPlaying && steps[currentStep]) {
-            isTTSSpeakingRef.current = true;
-            setIsTTSSpeaking(true);
-            if (recognitionRef.current) {
-                try { recognitionRef.current.abort(); } catch { /* safe */ }
-                recognitionRef.current = null;
-            }
-
-            const utterance = new SpeechSynthesisUtterance(steps[currentStep].text);
-            utterance.lang = "vi-VN";
-            utterance.rate = 1.0;
-
-            const voices = window.speechSynthesis.getVoices();
-            const viVoice = voices.find(voice =>
-                voice.lang.toLowerCase().includes('vi') ||
-                voice.name.toLowerCase().includes('vietnamese') ||
-                voice.name.toLowerCase().includes('viet')
-            );
-            if (viVoice) utterance.voice = viVoice;
-
-            const resumeMic = () => {
-                if (!isTTSSpeakingRef.current) return;
-                isTTSSpeakingRef.current = false;
-                if (isListeningRef.current) {
-                    setTimeout(() => startListeningRef.current?.(), 800);
-                } else {
-                    setIsTTSSpeaking(false);
-                }
-            };
-
-            utterance.onend = () => resumeMic();
-            utterance.onerror = () => resumeMic();
-
-            window.speechSynthesis.speak(utterance);
-
-            const textLen = steps[currentStep].text.length;
-            const fallbackMs = Math.max(textLen * 80, 3000) + 3000;
-            const fallbackTimer = setTimeout(() => resumeMic(), fallbackMs);
-
-            return () => {
-                clearTimeout(fallbackTimer);
-                window.speechSynthesis.cancel();
-                isTTSSpeakingRef.current = false;
-                setIsTTSSpeaking(false);
-            };
-        }
-
-        return () => {
-            window.speechSynthesis.cancel();
-            isTTSSpeakingRef.current = false;
-            setIsTTSSpeaking(false);
-        };
-    }, [currentStep, isAudioPlaying, steps]);
-
+    // ── Render ──
     if (!recipe) return null;
 
-    const toggleAudio = () => {
-        setIsAudioPlaying(!isAudioPlaying);
-    };
-
+    const toggleAudio = () => setIsAudioPlaying(prev => !prev);
     const toggleVoice = () => {
         setIsListening(prev => !prev);
+        setMicError(null);
     };
-
     const progress = ((currentStep + 1) / steps.length) * 100;
 
     return (
@@ -349,7 +259,7 @@ export default function CookingModePage() {
                     </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    {/* Voice Command Toggle */}
+                    {/* Mic Toggle */}
                     <Button
                         variant="secondary"
                         size="icon"
@@ -361,7 +271,7 @@ export default function CookingModePage() {
                     >
                         {isListening ? <Mic size={20} className="animate-pulse" /> : <MicOff size={20} />}
                     </Button>
-                    {/* TTS Audio Toggle */}
+                    {/* TTS Toggle */}
                     <Button
                         variant="secondary"
                         size="icon"
@@ -373,6 +283,13 @@ export default function CookingModePage() {
                 </div>
             </div>
 
+            {/* Mic permission error */}
+            {micError && (
+                <div className="text-center py-1">
+                    <span className="text-xs text-red-500 font-medium">{micError}</span>
+                </div>
+            )}
+
             <div className="h-2 w-full liquid-glass-input rounded-full overflow-hidden my-4 shadow-inner border border-white/20">
                 <div
                     className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700 ease-spring"
@@ -380,7 +297,7 @@ export default function CookingModePage() {
                 />
             </div>
 
-            {/* Swipeable Card Area */}
+            {/* Card Area */}
             <div className="flex-1 flex items-center justify-center relative overflow-hidden py-4">
                 <div
                     key={currentStep}
@@ -394,7 +311,7 @@ export default function CookingModePage() {
                         {steps[currentStep].text}
                     </p>
 
-                    {/* Voice Feedback Bubble - "AI đang hiểu" */}
+                    {/* Voice Feedback Bubble */}
                     {voiceFeedback && (
                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 liquid-glass-item px-5 py-2.5 rounded-full border border-blue-300/40 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="flex items-center gap-2">
@@ -404,28 +321,23 @@ export default function CookingModePage() {
                         </div>
                     )}
 
-                    {/* Unified Status Badge - ONE badge, clear state */}
-                    {(isListening || isTTSSpeaking) && !voiceFeedback && (
-                        <div className={`absolute top-6 right-6 flex items-center gap-1.5 liquid-glass-item px-3 py-2 rounded-full border transition-all duration-300 ${isTTSSpeaking
-                            ? "border-emerald-200/50"
-                            : "border-blue-200/50"
+                    {/* Unified Status Badge */}
+                    {(isListening || isMuted) && !voiceFeedback && (
+                        <div className={`absolute top-6 right-6 flex items-center gap-1.5 liquid-glass-item px-3 py-2 rounded-full border transition-all duration-300 ${isMuted ? "border-emerald-200/50" : "border-blue-200/50"
                             }`}>
-                            <span className={`text-xs font-bold mr-0.5 uppercase ${isTTSSpeaking ? "text-emerald-600" : "text-blue-600"
+                            <span className={`text-xs font-bold mr-0.5 uppercase ${isMuted ? "text-emerald-600" : "text-blue-600"
                                 }`}>
-                                {isTTSSpeaking ? "Đang đọc" : "Đang nghe"}
+                                {isMuted ? "Đang đọc" : "Đang nghe"}
                             </span>
-                            <span className={`w-1 h-3 rounded-full animate-bounce [animation-delay:-0.3s] ${isTTSSpeaking ? "bg-emerald-500" : "bg-blue-500"
-                                }`}></span>
-                            <span className={`w-1 h-4 rounded-full animate-bounce [animation-delay:-0.15s] ${isTTSSpeaking ? "bg-emerald-500" : "bg-blue-500"
-                                }`}></span>
-                            <span className={`w-1 h-2 rounded-full animate-bounce ${isTTSSpeaking ? "bg-emerald-500" : "bg-blue-500"
-                                }`}></span>
+                            <span className={`w-1 h-3 rounded-full animate-bounce [animation-delay:-0.3s] ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
+                            <span className={`w-1 h-4 rounded-full animate-bounce [animation-delay:-0.15s] ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
+                            <span className={`w-1 h-2 rounded-full animate-bounce ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Last heard transcript - subtle debug for natural feel */}
+            {/* Last heard transcript */}
             {isListening && lastTranscript && (
                 <div className="text-center mb-1">
                     <span className="text-xs text-zinc-400 italic">&quot;{lastTranscript}&quot;</span>
