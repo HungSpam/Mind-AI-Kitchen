@@ -14,8 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mindaikitchen.vercel.app"),
   title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
   description: "Trợ lý dinh dưỡng và nấu ăn cá nhân hóa với AI",
+  icons: {
+    icon: "/icon.svg",
+  },
   openGraph: {
     title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
     description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
@@ -31,6 +35,12 @@ export const metadata: Metadata = {
     ],
     locale: "vi_VN",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
+    description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
+    images: ["/opengraph-image.png"],
   },
 };
 
