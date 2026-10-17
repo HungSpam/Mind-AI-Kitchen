@@ -138,7 +138,10 @@ export default function ResultPage() {
               {Math.round(recipe.nutrition.calories / recipe.servings)} kcal / phần
             </span>
           ) : (
-            <span style={{ color: 'var(--muted)' }} title="Chưa có khối lượng thực tế để tính calo chuẩn">
+            <span
+              style={{ color: 'var(--muted)' }}
+              title="Chưa có khối lượng thực tế để tính calo chuẩn"
+            >
               <Flame size={16} />
               Chưa cân gram
             </span>
@@ -228,7 +231,8 @@ export default function ResultPage() {
                     }}
                   >
                     <Flame size={16} />
-                    Dinh dưỡng: {Math.round(recipe.nutrition.calories! / recipe.servings)} kcal / phần
+                    Dinh dưỡng: {Math.round(recipe.nutrition.calories! / recipe.servings)} kcal /
+                    phần
                   </strong>
                   <span className="small muted">Đối chiếu chuẩn USDA</span>
                 </div>
@@ -272,17 +276,14 @@ export default function ResultPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <Flame
-                    size={20}
-                    color="var(--muted)"
-                    style={{ marginTop: 2, flexShrink: 0 }}
-                  />
+                  <Flame size={20} color="var(--muted)" style={{ marginTop: 2, flexShrink: 0 }} />
                   <div>
                     <strong style={{ fontSize: 13, display: 'block', marginBottom: 2 }}>
                       Ước tính Calo & Dinh dưỡng: Chưa có số liệu
                     </strong>
                     <p className="small muted" style={{ margin: 0, lineHeight: 1.5 }}>
-                      Các nguyên liệu hiện <strong>Chưa cân</strong>. Để bảo đảm an toàn cho sức khỏe, Mind AI Kitchen tuân thủ chuẩn USDA và không để AI tự bịa số calo ảo.
+                      Các nguyên liệu hiện <strong>Chưa cân</strong>. Để bảo đảm an toàn cho sức
+                      khỏe, Mind AI Kitchen tuân thủ chuẩn USDA và không để AI tự bịa số calo ảo.
                     </p>
                     <Link
                       href="/scan"

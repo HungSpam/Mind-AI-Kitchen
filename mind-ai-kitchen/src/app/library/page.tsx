@@ -3,7 +3,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowUpRight, BookOpen, Download, Upload, Heart, Search, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowUpRight,
+  BookOpen,
+  Download,
+  Upload,
+  Heart,
+  Search,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { db } from '@/lib/db';
 import { exportBackup, importBackup } from '@/lib/backup';
 import { useAppStore } from '@/store/useAppStore';
@@ -226,8 +235,8 @@ export default function LibraryPage() {
         title="Xóa công thức"
         message={
           <p style={{ margin: 0 }}>
-            Bạn có chắc chắn muốn xóa món <strong>{recipeToDelete?.title}</strong> khỏi sổ công thức?
-            Hành động này không thể hoàn tác.
+            Bạn có chắc chắn muốn xóa món <strong>{recipeToDelete?.title}</strong> khỏi sổ công
+            thức? Hành động này không thể hoàn tác.
           </p>
         }
         confirmLabel="Xóa món"

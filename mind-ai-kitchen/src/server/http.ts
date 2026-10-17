@@ -5,6 +5,7 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    public upstreamStatus?: number,
   ) {
     super(message);
   }
@@ -64,7 +65,12 @@ export function failure(error: unknown) {
   const status = known ? error.status : 500;
   // Never log images, profiles, prompts, credentials or upstream error bodies.
   console.error(
-    JSON.stringify({ event: 'api_error', status, code: known ? error.code : 'INTERNAL' }),
+    JSON.stringify({
+      event: 'api_error',
+      status,
+      code: known ? error.code : 'INTERNAL',
+      ...(known && error.upstreamStatus ? { upstreamStatus: error.upstreamStatus } : {}),
+    }),
   );
   return Response.json(
     {

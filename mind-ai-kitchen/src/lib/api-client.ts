@@ -4,9 +4,13 @@ export async function postJSON<T>(
   signal?: AbortSignal,
   customHeaders?: Record<string, string>,
 ): Promise<T> {
-  const isMockStored =
-    typeof window !== 'undefined' &&
-    (localStorage.getItem('mind_kitchen_mock_ai') ?? 'true') === 'true';
+  let isMockStored = false;
+  try {
+    isMockStored =
+      typeof window !== 'undefined' && localStorage.getItem('mind_kitchen_mock_ai') === 'true';
+  } catch {
+    // Storage may be blocked. Keep the real service as the default.
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

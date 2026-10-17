@@ -36,7 +36,13 @@ export async function POST(request: Request) {
       JSON.stringify(body),
     ].join('\n');
     const isMock = request.headers.get('x-mock-ai') === 'true';
-    const generated = await generateJSON(prompt, generatedRecipeSchema, undefined, request.signal, isMock);
+    const generated = await generateJSON(
+      prompt,
+      generatedRecipeSchema,
+      undefined,
+      request.signal,
+      isMock,
+    );
     if (
       new Set(generated.ingredientIds).size !== generated.ingredientIds.length ||
       generated.ingredientIds.some((id) => !ids.includes(id))

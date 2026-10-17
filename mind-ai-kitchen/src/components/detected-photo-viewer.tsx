@@ -72,7 +72,10 @@ export function DetectedPhotoViewer({
         {showBoxes && (
           <div className="detected-overlay-layer" aria-label="Các vùng nguyên liệu được nhận diện">
             {displayItems
-              .filter((item): item is typeof item & { box2d: [number, number, number, number] } => !!item.box2d && item.box2d.length === 4)
+              .filter(
+                (item): item is typeof item & { box2d: [number, number, number, number] } =>
+                  !!item.box2d && item.box2d.length === 4,
+              )
               .map((item) => {
                 let [ymin, xmin, ymax, xmax] = item.box2d;
                 if (ymax <= 1 && xmax <= 1) {
@@ -117,9 +120,7 @@ export function DetectedPhotoViewer({
                     <div className="detected-tag">
                       <CheckCircle2 size={12} className="detected-tag-check" />
                       <span className="detected-tag-text">{item.name}</span>
-                      {item.grams && (
-                        <span className="detected-tag-grams">{item.grams}g</span>
-                      )}
+                      {item.grams && <span className="detected-tag-grams">{item.grams}g</span>}
                     </div>
                   </div>
                 );

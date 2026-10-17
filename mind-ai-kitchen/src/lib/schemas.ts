@@ -71,7 +71,8 @@ export const visionResponseSchema = z.object({
     .array(
       z.object({
         name: z.string().trim().min(2).max(100),
-        box2d: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+        // Homogeneous arrays emit items/minItems/maxItems, compatible with generateContent.
+        box2d: z.array(z.number()).length(4).optional(),
       }),
     )
     .max(30),

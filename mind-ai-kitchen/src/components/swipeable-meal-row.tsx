@@ -211,11 +211,7 @@ export function SwipeableMealRow({
             <small> kcal</small>
           </strong>
           {/* Subtle swipe hint indicator */}
-          <span
-            className="swipe-hint"
-            aria-hidden="true"
-            title="Vuốt sang trái để xóa"
-          >
+          <span className="swipe-hint" aria-hidden="true" title="Vuốt sang trái để xóa">
             ‹
           </span>
         </div>

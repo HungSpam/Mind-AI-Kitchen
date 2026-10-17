@@ -24,7 +24,19 @@ export default function ScanPage() {
     setScannedIngredients,
     setCurrentRecipe,
   } = useAppStore();
-  const { openCamera, capture, clearCapture } = useCamera();
+  const { openCamera, capture, clearCapture, manualRequested, clearManualRequest } = useCamera();
+  const manualEntry = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (!manualRequested) return;
+    const timer = setTimeout(() => {
+      if (manualEntry.current) {
+        manualEntry.current.open = true;
+        manualEntry.current.querySelector('input')?.focus();
+      }
+      clearManualRequest();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [manualRequested, clearManualRequest]);
   const [name, setName] = useState('');
   const [grams, setGrams] = useState('');
   const [servings, setServings] = useState(2);
@@ -45,9 +57,12 @@ export default function ScanPage() {
   const [activeIngredientId, setActiveIngredientId] = useState<string | null>(null);
   const [mockAI, setMockAI] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('mind_kitchen_mock_ai') === 'true';
+    try {
+      return localStorage.getItem('mind_kitchen_mock_ai') === 'true';
+    } catch {
+      return false;
+    }
   });
-
 
   function handleToggleMockAI() {
     const next = !mockAI;
@@ -118,7 +133,9 @@ export default function ScanPage() {
         );
         if (request.signal.aborted) return;
         // Keep manual ingredients, replace photo batch with newly recognized items from this photo
-        const manualItems = useAppStore.getState().scannedIngredients.filter((i) => i.source === 'manual');
+        const manualItems = useAppStore
+          .getState()
+          .scannedIngredients.filter((i) => i.source === 'manual');
         if (manualItems.length + data.ingredients.length > 30)
           throw new Error('Danh sách vượt 30 nguyên liệu. Hãy bớt nguyên liệu rồi chụp lại.');
         setScannedIngredients([
@@ -143,8 +160,10 @@ export default function ScanPage() {
             : 'Chưa nhận ra nguyên liệu. Chụp rõ hơn hoặc thêm nhanh bên dưới.',
         );
       } catch (cause) {
-        if (!request.signal.aborted)
+        if (!request.signal.aborted) {
+          setCandidate(image);
           setError(cause instanceof Error ? cause.message : 'Không nhận diện được ảnh.');
+        }
       } finally {
         if (controller.current === request) {
           setBusy(null);
@@ -207,24 +226,11 @@ export default function ScanPage() {
             : 'Để AI nhận diện những gì bạn đang có.'}
         </p>
       </div>
-      <div className="test-mode-banner">
-        <div className="test-mode-status">
-          <span className={`test-dot ${mockAI ? 'is-active' : ''}`} />
-          <span className="test-text">
-            Bỏ qua API (Mock Test):{' '}
-            <strong style={{ color: mockAI ? '#10b981' : 'var(--muted)' }}>
-              {mockAI ? 'ĐANG BẬT' : 'ĐANG TẮT'}
-            </strong>
-          </span>
-        </div>
-        <button
-          type="button"
-          className={`test-toggle-btn ${mockAI ? 'is-on' : ''}`}
-          onClick={handleToggleMockAI}
-        >
-          {mockAI ? 'Tắt bỏ qua' : 'Bật bỏ qua'}
-        </button>
-      </div>
+      {mockAI && (
+        <Notice kind="warning">
+          Đang dùng dữ liệu mẫu. Tắt chế độ thử nghiệm để nhận diện thật.
+        </Notice>
+      )}
       {!busy && !candidate && (
         <section className={ingredients.length ? 'capture-tools' : 'capture-card'}>
           {!ingredients.length && (
@@ -407,7 +413,7 @@ export default function ScanPage() {
           </p>
         </section>
       )}
-      <details className="manual-entry panel">
+      <details ref={manualEntry} className="manual-entry panel">
         <summary>
           Thêm nguyên liệu bằng tay <Plus size={18} />
         </summary>
@@ -509,6 +515,27 @@ export default function ScanPage() {
           </p>
         </section>
       )}
+      <details className="profile-history">
+        <summary>Chế độ thử nghiệm</summary>
+        <div className="test-mode-banner">
+          <div className="test-mode-status">
+            <span className={`test-dot ${mockAI ? 'is-active' : ''}`} />
+            <span className="test-text">
+              Bỏ qua API (Mock Test):{' '}
+              <strong style={{ color: mockAI ? '#10b981' : 'var(--muted)' }}>
+                {mockAI ? 'ĐANG BẬT' : 'ĐANG TẮT'}
+              </strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            className={`test-toggle-btn ${mockAI ? 'is-on' : ''}`}
+            onClick={handleToggleMockAI}
+          >
+            {mockAI ? 'Tắt bỏ qua' : 'Bật bỏ qua'}
+          </button>
+        </div>
+      </details>
     </div>
   );
 }

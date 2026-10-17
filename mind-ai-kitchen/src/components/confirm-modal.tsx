@@ -73,9 +73,7 @@ export function ConfirmModal({
             {title}
           </h2>
         </div>
-        <div style={{ fontSize: '14px', color: 'var(--muted)', lineHeight: '1.6' }}>
-          {message}
-        </div>
+        <div style={{ fontSize: '14px', color: 'var(--muted)', lineHeight: '1.6' }}>{message}</div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             {cancelLabel}

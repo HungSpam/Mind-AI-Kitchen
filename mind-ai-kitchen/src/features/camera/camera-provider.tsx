@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Camera, Check, ImagePlus, RotateCcw, X } from 'lucide-react';
 import { compressImage } from '@/lib/image';
 import { Notice } from '@/components/notice';
@@ -15,6 +14,8 @@ interface CameraContextValue {
   openCamera: () => void;
   capture: Capture | null;
   clearCapture: (id: string) => void;
+  manualRequested: boolean;
+  clearManualRequest: () => void;
 }
 const CameraContext = createContext<CameraContextValue | null>(null);
 
@@ -24,7 +25,15 @@ export function useCamera() {
   return context;
 }
 
-function CameraDialog({ close, accept }: { close: () => void; accept: (image: string) => void }) {
+function CameraDialog({
+  close,
+  accept,
+  manual,
+}: {
+  close: () => void;
+  accept: (image: string) => void;
+  manual: () => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -39,13 +48,18 @@ function CameraDialog({ close, accept }: { close: () => void; accept: (image: st
   }, []);
 
   useEffect(() => {
-    dialog.current?.showModal();
+    const modal = dialog.current;
+    const returnFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modal?.showModal();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('popstate', close);
     return () => {
+      modal?.close();
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('popstate', close);
+      if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     };
   }, [close]);
 
@@ -228,9 +242,9 @@ function CameraDialog({ close, accept }: { close: () => void; accept: (image: st
               </button>
             </div>
           )}
-          <Link className="btn btn-tertiary" href="/scan#manual-entry" onClick={close}>
+          <button className="btn btn-tertiary" onClick={manual}>
             Nhập nguyên liệu bằng tay
-          </Link>
+          </button>
         </footer>
       </div>
     </dialog>
@@ -240,9 +254,11 @@ function CameraDialog({ close, accept }: { close: () => void; accept: (image: st
 export function CameraProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [capture, setCapture] = useState<Capture | null>(null);
+  const [manualRequested, setManualRequested] = useState(false);
   const router = useRouter();
   const openCamera = useCallback(() => setOpen(true), []);
   const close = useCallback(() => setOpen(false), []);
+  const clearManualRequest = useCallback(() => setManualRequested(false), []);
   const clearCapture = useCallback(
     (id: string) => setCapture((current) => (current?.id === id ? null : current)),
     [],
@@ -253,9 +269,21 @@ export function CameraProvider({ children }: { children: React.ReactNode }) {
     router.push('/scan');
   }
   return (
-    <CameraContext.Provider value={{ openCamera, capture, clearCapture }}>
+    <CameraContext.Provider
+      value={{ openCamera, capture, clearCapture, manualRequested, clearManualRequest }}
+    >
       {children}
-      {open && <CameraDialog close={close} accept={accept} />}
+      {open && (
+        <CameraDialog
+          close={close}
+          accept={accept}
+          manual={() => {
+            setManualRequested(true);
+            setOpen(false);
+            router.push('/scan');
+          }}
+        />
+      )}
     </CameraContext.Provider>
   );
 }

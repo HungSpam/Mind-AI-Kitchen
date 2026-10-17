@@ -369,7 +369,10 @@ small,
 }
 .icon-btn-delete {
   color: var(--muted);
-  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    border-color 0.15s;
 }
 .icon-btn-delete:hover {
   color: var(--red);
@@ -591,7 +594,9 @@ small,
   margin-left: 2px;
   display: inline-block;
   line-height: 1;
-  transition: color 0.15s, transform 0.15s;
+  transition:
+    color 0.15s,
+    transform 0.15s;
 }
 .swipeable-wrapper:hover .swipe-hint {
   color: var(--muted);
@@ -2183,7 +2188,9 @@ small,
 .detected-box.is-active {
   border-color: #34d399;
   background: rgba(16, 185, 129, 0.26);
-  box-shadow: 0 0 0 2px #ffffff, 0 0 24px rgba(16, 185, 129, 0.75);
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 24px rgba(16, 185, 129, 0.75);
   transform: scale(1.015);
   z-index: 10;
 }
@@ -2362,7 +2369,3 @@ small,
   color: #065f46;
   background: #ecfdf5;
 }
-
-
-
-

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { setTimeout as delay } from 'node:timers/promises';
 import { ApiError } from './http';
 
 export const aiModel = () => process.env.GEMINI_MODEL || 'gemini-flash-latest';
@@ -103,30 +104,37 @@ export async function generateJSON<T>(
   const parts: object[] = [{ text: prompt }];
   if (imageBase64)
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] } });
-  let response: Response;
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(45_000)])
+    : AbortSignal.timeout(45_000);
+  let response!: Response;
   try {
-    response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/' +
-        encodeURIComponent(aiModel()) +
-        ':generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseJsonSchema: jsonSchema,
-            temperature: 0.3,
-            maxOutputTokens: 8192,
-          },
-        }),
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(45_000)])
-          : AbortSignal.timeout(45_000),
-        cache: 'no-store',
-      },
-    );
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' +
+          encodeURIComponent(aiModel()) +
+          ':generateContent',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseJsonSchema: jsonSchema,
+              temperature: 0.3,
+              maxOutputTokens: 8192,
+            },
+          }),
+          signal: requestSignal,
+          cache: 'no-store',
+        },
+      );
+      if (![500, 502, 503, 504].includes(response.status) || attempt === 2) break;
+      // Retry only transient provider errors, within one deadline for the entire request.
+      await response.body?.cancel();
+      await delay(500 * 2 ** attempt, undefined, { signal: requestSignal });
+    }
   } catch {
     throw new ApiError(
       504,
@@ -134,12 +142,43 @@ export async function generateJSON<T>(
       'AI phản hồi quá lâu hoặc yêu cầu đã bị hủy. Vui lòng thử lại.',
     );
   }
-  if (!response.ok)
+  if (!response.ok) {
+    // Keep upstream payloads private; distinguish configuration errors from service outages.
+    if (response.status === 400 || response.status === 422)
+      throw new ApiError(
+        502,
+        'AI_REQUEST_REJECTED',
+        'AI không chấp nhận yêu cầu xử lý. Cần kiểm tra cấu hình nhận diện.',
+        response.status,
+      );
+    if (response.status === 401 || response.status === 403)
+      throw new ApiError(
+        503,
+        'AI_AUTH',
+        'Kết nối AI chưa được cấp quyền. Vui lòng kiểm tra cấu hình dịch vụ.',
+        response.status,
+      );
+    if (response.status === 404)
+      throw new ApiError(
+        503,
+        'AI_MODEL_NOT_FOUND',
+        'Model AI đang cấu hình không khả dụng.',
+        response.status,
+      );
+    if (response.status === 429)
+      throw new ApiError(
+        429,
+        'AI_RATE_LIMIT',
+        'AI đang bị giới hạn lượt sử dụng. Vui lòng thử lại sau.',
+        response.status,
+      );
     throw new ApiError(
-      response.status === 429 ? 429 : 503,
+      503,
       'AI_UNAVAILABLE',
       'AI đang không sẵn sàng. Vui lòng thử lại sau.',
+      response.status,
     );
+  }
   try {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts
