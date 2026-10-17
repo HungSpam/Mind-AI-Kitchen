@@ -1,12 +1,12 @@
 'use client';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Mic, MicOff, Square, Volume2, Check } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Mic, MicOff, Square, Volume2, Check, Timer } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { reviewRecipe } from '@/lib/recipe-review';
 import { useCookingVoice } from '@/features/cooking/use-cooking-voice';
 import type { VoiceCommand } from '@/features/cooking/commands';
-import { StepTimer } from '@/features/cooking/step-timer';
+import { StepTimer, type StepTimerHandle } from '@/features/cooking/step-timer';
 import { Notice } from '@/components/notice';
 
 function restoreStep(id: string, total: number) {
@@ -26,6 +26,9 @@ export default function CookingPage() {
   const [step, setStep] = useState(() =>
     recipe ? restoreStep(recipe.id, recipe.steps.length) : 0,
   );
+  const [customTimers, setCustomTimers] = useState<Record<number, number>>({});
+  const timerRef = useRef<StepTimerHandle>(null);
+
   const safe =
     !!recipe && !recipe.audit.hasRisk && recipe.ingredients.every((item) => item.confirmed);
   const move = useCallback(
@@ -48,7 +51,32 @@ export default function CookingPage() {
         move(-1);
         return step === 0 ? 'Bạn đang ở bước đầu tiên.' : 'Đã quay lại bước trước.';
       }
-      if (action === 'repeat') read(recipe?.steps[step]?.text || '');
+      if (action === 'repeat' || action === 'read') {
+        read(recipe?.steps[step]?.text || '');
+        return action === 'repeat' ? 'Đang đọc lại bước này.' : 'Đang đọc bước này.';
+      }
+      if (action === 'timer-start') {
+        if (timerRef.current) {
+          const started = timerRef.current.start();
+          return started ? 'Đã bắt đầu hẹn giờ.' : 'Hẹn giờ đang chạy rồi.';
+        }
+        setCustomTimers((prev) => ({ ...prev, [step]: 180 }));
+        return 'Đã bật hẹn giờ 3 phút cho bước này.';
+      }
+      if (action === 'timer-stop') {
+        if (timerRef.current) {
+          const paused = timerRef.current.pause();
+          return paused ? 'Đã tạm dừng hẹn giờ.' : 'Hẹn giờ đang dừng sẵn.';
+        }
+        return 'Chưa có hẹn giờ nào đang chạy.';
+      }
+      if (action === 'timer-reset') {
+        if (timerRef.current) {
+          timerRef.current.reset();
+          return 'Đã đặt lại hẹn giờ.';
+        }
+        return 'Chưa có hẹn giờ để đặt lại.';
+      }
     },
     [move, recipe, step, safe],
   );
@@ -109,6 +137,7 @@ export default function CookingPage() {
       </div>
     );
   const last = step === recipe.steps.length - 1;
+  const currentDuration = recipe.steps[step].durationSeconds || customTimers[step];
   return (
     <div className="cooking-focus">
       <header className="focus-header">
@@ -119,6 +148,41 @@ export default function CookingPage() {
         <span className="focus-step-indicator">
           Bước {step + 1} / {recipe.steps.length}
         </span>
+        <div className="focus-header-actions">
+          {/* Nút Loa / Đọc to thành tiếng */}
+          <button
+            type="button"
+            className={`focus-action-btn ${voice.speaking ? 'is-active is-speaking' : autoRead ? 'is-active' : ''}`}
+            aria-label={voice.speaking ? 'Dừng đọc' : 'Đọc bước này'}
+            title={voice.speaking ? 'Đang đọc (Bấm để dừng)' : 'Đọc bước này'}
+            onClick={() => {
+              if (voice.speaking) {
+                stop();
+              } else {
+                speak(recipe.steps[step].text);
+              }
+            }}
+          >
+            {voice.speaking ? <Square size={18} /> : <Volume2 size={20} />}
+          </button>
+          {/* Nút Micro */}
+          <button
+            type="button"
+            className={`focus-action-btn ${voice.listening ? 'is-active is-listening' : ''}`}
+            aria-label={voice.listening ? 'Tắt micro' : 'Bật micro'}
+            title={voice.listening ? 'Micro đang bật' : 'Micro đang tắt'}
+            onClick={voice.toggleListening}
+          >
+            {voice.listening && voice.status !== 'paused' ? (
+              <Mic size={20} />
+            ) : (
+              <MicOff size={20} />
+            )}
+            {voice.listening && voice.status !== 'paused' && (
+              <span className="mic-pulse-dot" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </header>
       <div
         className="focus-progress"
@@ -128,12 +192,22 @@ export default function CookingPage() {
       </div>
       <section className="focus-instruction" aria-live="polite">
         <h1>{recipe.steps[step].text}</h1>
-        {!!recipe.steps[step].durationSeconds && (
+        {currentDuration ? (
           <StepTimer
+            ref={timerRef}
             key={step}
-            seconds={recipe.steps[step].durationSeconds!}
+            seconds={currentDuration}
             storageKey={'mind-cooking-timer-' + recipe.id + '-' + step}
           />
+        ) : (
+          <button
+            type="button"
+            className="btn btn-tertiary"
+            onClick={() => setCustomTimers((prev) => ({ ...prev, [step]: 180 }))}
+          >
+            <Timer size={18} />
+            <span>+ Hẹn giờ 3 phút</span>
+          </button>
         )}
       </section>
       <footer className="focus-controls">
@@ -223,7 +297,10 @@ export default function CookingPage() {
                     <p className="cooking-transcript">Đã nghe: “{voice.transcript}”</p>
                   )}
                   <p role="status" aria-live="polite">
-                    {voice.response || 'Nói “bước tiếp”, “quay lại” hoặc “đọc lại”.'}
+                    {voice.response ||
+                      (autoRead
+                        ? 'Nói “bước tiếp”, “quay lại”, “hẹn giờ” hoặc “dừng”.'
+                        : 'Nói “đọc”, “bước tiếp”, “quay lại”, “hẹn giờ” hoặc “dừng”.')}
                   </p>
                 </>
               )}

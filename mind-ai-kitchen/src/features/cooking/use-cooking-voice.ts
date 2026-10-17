@@ -233,7 +233,11 @@ export function useCookingVoice(
                 next: 'Đã chuyển sang bước tiếp theo.',
                 prev: 'Đã quay lại bước trước.',
                 repeat: 'Đang đọc lại bước này.',
+                read: 'Đang đọc bước này.',
                 stop: 'Đã dừng đọc.',
+                'timer-start': 'Đã bắt đầu hẹn giờ.',
+                'timer-stop': 'Đã tạm dừng hẹn giờ.',
+                'timer-reset': 'Đã đặt lại hẹn giờ.',
               }[command],
           );
         } else {
