@@ -1,6 +1,5 @@
 # ==========================================
 # 🔒 BẢO MẬT & TÀI KHOẢN (Environment & Secrets)
-# Tuyệt đối không đẩy file chứa API Key / Token lên Git
 # ==========================================
 **/.env*
 !**/.env.example
@@ -11,6 +10,38 @@
 **/credentials.json
 **/secrets.json
 **/serviceAccountKey.json
+
+# ==========================================
+# 📄 TÀI LIỆU NỘI BỘ & BÁO CÁO LOCAL (Docs & Reports)
+# ==========================================
+docs/
+ERRORS.md
+*.docx
+*.doc
+*.pdf
+*.xlsx
+*.pptx
+*.drawio
+local-docs/
+
+# ==========================================
+# 🧪 KIỂM THỬ LOCAL & CI (Tests, Scripts & CI)
+# ==========================================
+.github/
+**/tests/
+**/scripts/
+**/playwright.config.ts
+**/playwright-report/
+**/test-results/
+**/coverage/
+**/.nyc_output/
+
+# ==========================================
+# 🧹 CẤU HÌNH LINTER & FORMATTER (Lint & Formatting)
+# ==========================================
+**/.prettier*
+**/eslint.config.mjs
+**/.eslintrc*
 
 # ==========================================
 # 📦 PHỤ THUỘC & THƯ VIỆN (Dependencies)
@@ -29,14 +60,6 @@
 **/dist/
 **/*.tsbuildinfo
 next-env.d.ts.bak
-
-# ==========================================
-# 🧪 KIỂM THỬ & BÁO CÁO (Testing & Coverage)
-# ==========================================
-**/coverage/
-**/playwright-report/
-**/test-results/
-**/.nyc_output/
 
 # ==========================================
 # 📜 NHẬT KÝ & LOGS (Logs & Diagnostics)

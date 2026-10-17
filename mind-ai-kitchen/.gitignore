@@ -11,14 +11,31 @@ credentials.json
 secrets.json
 
 # ==========================================
-# 📦 PHỤ THUỘC & THƯ VIỆN (Dependencies)
+# 🧪 KIỂM THỬ LOCAL (Tests & Test Config)
+# ==========================================
+tests/
+scripts/
+playwright.config.ts
+playwright-report/
+test-results/
+coverage/
+
+# ==========================================
+# 🧹 CẤU HÌNH LINTER & FORMATTER
+# ==========================================
+.prettier*
+eslint.config.mjs
+.eslintrc*
+
+# ==========================================
+# 📦 PHỤ THUỘC & THƯ VIỆN
 # ==========================================
 node_modules/
 .pnp/
 .pnp.js
 
 # ==========================================
-# 🏗️ BẢN BUILD & BIÊN DỊCH (Build Output)
+# 🏗️ BẢN BUILD & BIÊN DỊCH
 # ==========================================
 .next/
 .next-production/
@@ -28,14 +45,7 @@ dist/
 *.tsbuildinfo
 
 # ==========================================
-# 🧪 KIỂM THỬ & BÁO CÁO (Testing & Coverage)
-# ==========================================
-coverage/
-playwright-report/
-test-results/
-
-# ==========================================
-# 📜 NHẬT KÝ & LOGS (Logs & Diagnostics)
+# 📜 NHẬT KÝ & LOGS
 # ==========================================
 *.log
 npm-debug.log*
@@ -43,7 +53,7 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # ==========================================
-# 💻 HỆ ĐIỀU HÀNH & EDITOR (OS & IDE Metadata)
+# 💻 HỆ ĐIỀU HÀNH & EDITOR
 # ==========================================
 .DS_Store
 Thumbs.db
