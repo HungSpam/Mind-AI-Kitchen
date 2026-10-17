@@ -1,0 +1,15 @@
+{
+  "name": "mind-kitchen-repository",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix mind-ai-kitchen ci",
+    "dev": "npm --prefix mind-ai-kitchen run dev",
+    "build": "npm --prefix mind-ai-kitchen run build",
+    "start": "npm --prefix mind-ai-kitchen run start",
+    "lint": "npm --prefix mind-ai-kitchen run lint",
+    "typecheck": "npm --prefix mind-ai-kitchen run typecheck",
+    "test": "npm --prefix mind-ai-kitchen test",
+    "test:e2e": "npm --prefix mind-ai-kitchen run test:e2e",
+    "benchmark": "npm --prefix mind-ai-kitchen run benchmark"
+  }
+}

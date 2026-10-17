@@ -1,0 +1,306 @@
+[
+  {
+    "id": "TC-01",
+    "name": "Dị ứng hải sản - Ẩn mắm tôm",
+    "userAllergy": "Hải sản, tôm cua",
+    "recipeIngredients": ["200g Thịt ba chỉ", "1 thìa mắm tôm", "Hành tím, tỏi, ớt"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "crustaceans_molluscs",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-02",
+    "name": "Dị ứng hải sản - Ẩn dầu hào",
+    "userAllergy": "Tôm, hải sản",
+    "recipeIngredients": ["300g Cải thìa", "1 thìa dầu hào", "Tỏi băm"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "crustaceans_molluscs",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-03",
+    "name": "Dị ứng đậu phộng - Ẩn muối vừng lạc",
+    "userAllergy": "Đậu phộng, lạc",
+    "recipeIngredients": ["1 đĩa rau củ luộc", "2 thìa muối mè lạc chấm kèm"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "peanuts",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-04",
+    "name": "Dị ứng gluten - Ẩn bột chiên giòn",
+    "userAllergy": "Gluten, lúa mì",
+    "recipeIngredients": ["2 quả trứng gà", "30g bột chiên giòn", "Dầu ăn"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "gluten",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-05",
+    "name": "Dị ứng đậu nành - Ẩn xì dầu",
+    "userAllergy": "Đậu nành, đậu tương",
+    "recipeIngredients": ["150g Ức gà áp chảo", "1 thìa xì dầu Chinsu", "Gừng băm"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "soybeans",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-06",
+    "name": "Món an toàn - Không trùng dị ứng",
+    "userAllergy": "Hải sản",
+    "recipeIngredients": ["200g Thịt bò xào cần tây", "Tỏi băm, tiêu đen, muối hầm"],
+    "expectedRisk": false,
+    "expectedAllergenGroup": null,
+    "severity": null
+  },
+  {
+    "id": "TC-07",
+    "name": "Dị ứng sữa - Ẩn bơ động vật",
+    "userAllergy": "Sữa bò, lactose",
+    "recipeIngredients": ["100g Nấm xào bơ tỏi", "20g bơ động vật Anchor"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "dairy",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "TC-08",
+    "name": "Dị ứng riêng tùy chọn - Ẩn nấm hương",
+    "userAllergy": "nấm hương",
+    "recipeIngredients": ["Canh gà nấu nấm hương", "Thịt gà, gừng"],
+    "expectedRisk": true,
+    "expectedAllergenGroup": "custom",
+    "severity": "CRITICAL"
+  },
+  {
+    "id": "MIX-01",
+    "name": "Dị ứng nhóm và riêng",
+    "userAllergy": "Trứng, nấm hương",
+    "recipeIngredients": ["100g nấm hương"],
+    "expectedRisk": true,
+    "expectedKeyword": "nấm hương"
+  },
+  {
+    "id": "MIX-02",
+    "name": "Hai nhóm cùng lúc",
+    "userAllergy": "Sữa, trứng",
+    "recipeIngredients": ["sữa bò", "trứng gà"],
+    "expectedRisk": true
+  },
+  {
+    "id": "NEG-01",
+    "name": "Quả bơ không phải bơ sữa",
+    "userAllergy": "Sữa",
+    "recipeIngredients": ["1 quả bơ"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-02",
+    "name": "Sữa đậu nành không chứa sữa bò trong tên",
+    "userAllergy": "Sữa",
+    "recipeIngredients": ["sữa đậu nành"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-03",
+    "name": "Bơ đậu phộng không phải bơ sữa",
+    "userAllergy": "Sữa",
+    "recipeIngredients": ["bơ đậu phộng"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-04",
+    "name": "Cà chua không phải cá",
+    "userAllergy": "Cá",
+    "recipeIngredients": ["cà chua"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-05",
+    "name": "Cà rốt không phải cá",
+    "userAllergy": "Cá",
+    "recipeIngredients": ["cà rốt"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-06",
+    "name": "Không khớp từ nằm bên trong",
+    "userAllergy": "Mè",
+    "recipeIngredients": ["caramel"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-07",
+    "name": "Hồ sơ rỗng",
+    "userAllergy": "",
+    "recipeIngredients": ["trứng", "sữa"],
+    "expectedRisk": false
+  },
+  {
+    "id": "NEG-08",
+    "name": "Khoảng trắng",
+    "userAllergy": "   ",
+    "recipeIngredients": ["trứng"],
+    "expectedRisk": false
+  },
+  {
+    "id": "POS-01",
+    "name": "Nhập không dấu",
+    "userAllergy": "dau phong",
+    "recipeIngredients": ["đậu phộng rang"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-02",
+    "name": "Tên nguyên liệu không dấu",
+    "userAllergy": "Trứng",
+    "recipeIngredients": ["trung ga"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-03",
+    "name": "Viết hoa",
+    "userAllergy": "SỮA",
+    "recipeIngredients": ["SỮA TƯƠI"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-04",
+    "name": "Hạt điều",
+    "userAllergy": "Hạt cây",
+    "recipeIngredients": ["hạt điều rang"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-05",
+    "name": "Cá ẩn trong nước mắm",
+    "userAllergy": "Cá",
+    "recipeIngredients": ["nước mắm"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-06",
+    "name": "Mè trong dầu",
+    "userAllergy": "Vừng",
+    "recipeIngredients": ["dầu mè"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-07",
+    "name": "Trứng trong sốt",
+    "userAllergy": "Trứng",
+    "recipeIngredients": ["mayonnaise"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-08",
+    "name": "Đậu nành trong chao",
+    "userAllergy": "Đậu nành",
+    "recipeIngredients": ["chao"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-09",
+    "name": "Gluten trong mì căn",
+    "userAllergy": "Gluten",
+    "recipeIngredients": ["mì căn"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-10",
+    "name": "Cần tây",
+    "userAllergy": "Cần tây",
+    "recipeIngredients": ["celery"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-11",
+    "name": "Mù tạt",
+    "userAllergy": "Mù tạt",
+    "recipeIngredients": ["mustard"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-12",
+    "name": "Lupin",
+    "userAllergy": "lupin",
+    "recipeIngredients": ["bột lupin"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-13",
+    "name": "Sulphite",
+    "userAllergy": "sulphite",
+    "recipeIngredients": ["sulfites"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-14",
+    "name": "Kiwi riêng",
+    "userAllergy": "kiwi",
+    "recipeIngredients": ["kiwi tươi"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-15",
+    "name": "Cà chua là dị ứng riêng",
+    "userAllergy": "cà chua",
+    "recipeIngredients": ["cà chua"],
+    "expectedRisk": true
+  },
+  {
+    "id": "NEG-09",
+    "name": "Dị ứng cà chua không áp cho cá",
+    "userAllergy": "cà chua",
+    "recipeIngredients": ["cá hồi"],
+    "expectedRisk": false
+  },
+  {
+    "id": "POS-16",
+    "name": "Danh sách có dấu chấm phẩy",
+    "userAllergy": "Trứng; kiwi",
+    "recipeIngredients": ["kiwi"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-17",
+    "name": "Nhiều từ riêng cùng nhóm",
+    "userAllergy": "Trứng, kiwi, nấm hương",
+    "recipeIngredients": ["nấm hương"],
+    "expectedRisk": true
+  },
+  {
+    "id": "NEG-10",
+    "name": "Hải sản không khớp sở hữu của",
+    "userAllergy": "Hải sản",
+    "recipeIngredients": ["Món ăn của bạn gồm thịt gà"],
+    "expectedRisk": false
+  },
+  {
+    "id": "POS-18",
+    "name": "Hải sản tên tiếng Anh",
+    "userAllergy": "shellfish",
+    "recipeIngredients": ["shrimp"],
+    "expectedRisk": true
+  },
+  {
+    "id": "POS-19",
+    "name": "Sữa vẫn phát hiện sau sữa hạt",
+    "userAllergy": "Sữa",
+    "recipeIngredients": ["sữa đậu nành pha sữa bò"],
+    "expectedRisk": true
+  },
+  {
+    "id": "NEG-11",
+    "name": "Hồ sơ dị ứng bơ quả",
+    "userAllergy": "quả bơ",
+    "recipeIngredients": ["bơ động vật"],
+    "expectedRisk": false
+  },
+  {
+    "id": "POS-20",
+    "name": "Hồ sơ dị ứng bơ quả đúng",
+    "userAllergy": "quả bơ",
+    "recipeIngredients": ["quả bơ"],
+    "expectedRisk": true
+  }
+]

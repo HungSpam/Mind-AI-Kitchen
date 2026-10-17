@@ -1,384 +1,249 @@
-"use client";
+'use client';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, Mic, MicOff, Square, Volume2, VolumeX, Check } from 'lucide-react';
+import { useAppStore } from '@/store/useAppStore';
+import { reviewRecipe } from '@/lib/recipe-review';
+import { useCookingVoice } from '@/features/cooking/use-cooking-voice';
+import type { VoiceCommand } from '@/features/cooking/commands';
+import { StepTimer } from '@/features/cooking/step-timer';
+import { Notice } from '@/components/notice';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Volume2, VolumeX, CheckCircle, ArrowRight, ArrowLeft, Mic, MicOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/store/useAppStore";
-
-// ── Keyword Matching ──────────────────────────────────────────────
-const NEXT_KEYWORDS = [
-    "next",
-    "bước tiếp", "tiếp theo", "tiếp tục", "tiếp đi",
-    "rồi sao", "rồi gì", "gì nữa", "gì tiếp",
-    "xong rồi", "được rồi", "làm gì tiếp", "làm gì nữa",
-    "sang bước", "chuyển bước", "qua bước", "làm tiếp",
-    "bước sau", "tiếp đến", "ok rồi", "xong bước này", "bước kế",
-];
-const PREV_KEYWORDS = [
-    "back",
-    "quay lại", "lùi lại", "bước trước", "trở lại",
-    "về lại", "quay về", "lùi về", "quay lui",
-    "sai rồi", "nhầm rồi", "bước vừa rồi", "về bước",
-];
-const REPEAT_KEYWORDS = [
-    "đọc lại", "nghe lại", "nhắc lại", "lặp lại", "nói lại",
-    "repeat",
-    "chưa nghe", "nghe không rõ", "nghe chưa kịp", "chưa nghe kịp",
-    "nói lại đi", "đọc lại đi", "nhanh quá", "sao cơ",
-    "vừa nói gì", "nói lại coi", "đọc lại coi",
-];
-
-function matchCommand(transcript: string): "next" | "prev" | "repeat" | null {
-    const normalized = transcript.toLowerCase().trim();
-    if (REPEAT_KEYWORDS.some(kw => normalized.includes(kw))) return "repeat";
-    if (PREV_KEYWORDS.some(kw => normalized.includes(kw))) return "prev";
-    if (NEXT_KEYWORDS.some(kw => normalized.includes(kw))) return "next";
-    return null;
+function restoreStep(id: string, total: number) {
+  try {
+    const value = Number(sessionStorage.getItem('mind-cooking-step-' + id));
+    return Number.isInteger(value) && value >= 0 && value < total ? value : 0;
+  } catch {
+    return 0;
+  }
 }
-
-// ── TTS Helper ────────────────────────────────────────────────────
-function speakVietnamese(text: string, onEnd?: () => void) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "vi-VN";
-    utterance.rate = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const viVoice = voices.find(v =>
-        v.lang.toLowerCase().includes("vi") ||
-        v.name.toLowerCase().includes("vietnamese") ||
-        v.name.toLowerCase().includes("viet")
-    );
-    if (viVoice) utterance.voice = viVoice;
-
-    if (onEnd) {
-        utterance.onend = onEnd;
-        utterance.onerror = onEnd;
+export default function CookingPage() {
+  const { currentRecipe, profile } = useAppStore();
+  const recipe = useMemo(
+    () => (currentRecipe ? reviewRecipe(currentRecipe, profile) : null),
+    [currentRecipe, profile],
+  );
+  const [step, setStep] = useState(() =>
+    recipe ? restoreStep(recipe.id, recipe.steps.length) : 0,
+  );
+  const [feedback, setFeedback] = useState('');
+  const safe =
+    !!recipe && !recipe.audit.hasRisk && recipe.ingredients.every((item) => item.confirmed);
+  const move = useCallback(
+    (direction: number) => {
+      if (!recipe) return;
+      setStep((current) => Math.max(0, Math.min(recipe.steps.length - 1, current + direction)));
+    },
+    [recipe],
+  );
+  const command = useCallback(
+    (action: VoiceCommand, read: (text: string) => void) => {
+      if (!safe) return;
+      if (action === 'next') {
+        move(1);
+        setFeedback('Bước tiếp theo.');
+      }
+      if (action === 'prev') {
+        move(-1);
+        setFeedback('Bước trước.');
+      }
+      if (action === 'repeat') read(recipe?.steps[step]?.text || '');
+      if (action === 'stop') setFeedback('Đã dừng đọc.');
+    },
+    [move, recipe, step, safe],
+  );
+  const voice = useCookingVoice(command);
+  const { autoRead, speak, stop } = voice;
+  useEffect(() => {
+    if (autoRead && safe && recipe) speak(recipe.steps[step].text);
+    return () => stop();
+  }, [autoRead, safe, recipe, step, speak, stop]);
+  useEffect(() => {
+    if (!recipe || !safe) return;
+    try {
+      sessionStorage.setItem('mind-cooking-step-' + recipe.id, String(step));
+    } catch {
+      /* Session storage may be unavailable. */
     }
-
-    window.speechSynthesis.speak(utterance);
-}
-
-// ── Page Component ────────────────────────────────────────────────
-export default function CookingModePage() {
-    const router = useRouter();
-    const { currentRecipe: recipe } = useAppStore();
-
-    useEffect(() => {
-        if (!recipe) router.push("/scan");
-    }, [recipe, router]);
-
-    // ── Core State ──
-    const [currentStep, setCurrentStep] = useState(0);
-    const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-    const [isListening, setIsListening] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
-    const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-    const [lastTranscript, setLastTranscript] = useState("");
-    const [micError, setMicError] = useState<string | null>(null);
-
-    // ── Refs ──
-    const recognitionRef = useRef<any>(null);
-    const isMutedRef = useRef(false);
-
-    const recipeName = recipe?.name || "";
-    const steps = recipe?.steps || [];
-
-    useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
-
-    const handleNext = useCallback(() => {
-        if (currentStep < steps.length - 1) setCurrentStep(s => s + 1);
-    }, [currentStep, steps.length]);
-
-    const handlePrev = useCallback(() => {
-        if (currentStep > 0) setCurrentStep(s => s - 1);
-    }, [currentStep]);
-
-    const showFeedback = useCallback((msg: string) => {
-        setVoiceFeedback(msg);
-        setTimeout(() => setVoiceFeedback(null), 2000);
-    }, []);
-
-    const speak = useCallback((text: string) => {
-        setIsMuted(true);
-        setIsAudioPlaying(true);
-        if (recognitionRef.current) {
-            try { recognitionRef.current.stop(); } catch { /* safe */ }
-        }
-        speakVietnamese(text, () => {
-            setIsMuted(false);
-            if (recognitionRef.current) {
-                try { recognitionRef.current.start(); } catch { /* safe */ }
-            }
-        });
-    }, []);
-
-    const handleRepeat = useCallback(() => {
-        if (steps[currentStep]) speak(steps[currentStep].text);
-    }, [currentStep, steps, speak]);
-
-    // ── Voice Command Processing ──
-    const commandHandlerRef = useRef<(transcript: string) => boolean>(() => false);
-
-    useEffect(() => {
-        commandHandlerRef.current = (transcript: string) => {
-            setLastTranscript(transcript);
-            const command = matchCommand(transcript);
-            if (!command) return false;
-
-            if (command === "next") {
-                if (currentStep < steps.length - 1) {
-                    showFeedback("Chuyển bước tiếp theo...");
-                    handleNext();
-                } else {
-                    showFeedback("Đây là bước cuối rồi!");
-                }
-            } else if (command === "prev") {
-                if (currentStep > 0) {
-                    showFeedback("Quay lại bước trước...");
-                    handlePrev();
-                } else {
-                    showFeedback("Đang ở bước đầu tiên!");
-                }
-            } else if (command === "repeat") {
-                showFeedback("Đọc lại cho bạn nghe nhé...");
-                handleRepeat();
-            }
-            return true;
-        };
-    }, [currentStep, steps, handleNext, handlePrev, handleRepeat, showFeedback, router]);
-
-    // ── TTS auto-play on step change ──
-    useEffect(() => {
-        if (isAudioPlaying && steps[currentStep]) {
-            speak(steps[currentStep].text);
-        }
-        return () => { window.speechSynthesis?.cancel(); };
-    }, [currentStep, isAudioPlaying, steps, speak]);
-
-    // ── SpeechRecognition Lifecycle ──
-    useEffect(() => {
-        if (!isListening) {
-            if (recognitionRef.current) {
-                try { recognitionRef.current.abort(); } catch { /* safe */ }
-                recognitionRef.current = null;
-            }
-            setIsMuted(false);
-            setMicError(null);
-            return;
-        }
-
-        const SpeechRecognitionClass = (window as any).SpeechRecognition
-            || (window as any).webkitSpeechRecognition;
-
-        if (!SpeechRecognitionClass) {
-            setMicError("Trình duyệt không hỗ trợ giọng nói");
-            setIsListening(false);
-            return;
-        }
-
-        let cancelled = false;
-
-        const recognition = new SpeechRecognitionClass();
-        recognition.lang = "vi-VN";
-        recognition.continuous = true;
-        // CRITICAL FOR IOS: enable interim results because iOS sometimes never fires isFinal=true
-        // We parse early, match the command, then manually stop() to clear buffer.
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        recognition.onresult = (event: any) => {
-            if (isMutedRef.current) return;
-
-            let currentTranscript = "";
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                currentTranscript += event.results[i][0].transcript + " ";
-            }
-
-            const matched = commandHandlerRef.current(currentTranscript);
-            if (matched) {
-                // Command executed! Stop mic immediately to clear the transcript buffer.
-                // The onend handler will restart it automatically if user hasn't turned off mic.
-                try { recognition.stop(); } catch { /* safe */ }
-            }
-        };
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        recognition.onerror = (event: any) => {
-            if (event.error === "no-speech" || event.error === "aborted") return;
-            if (event.error === "not-allowed") {
-                setMicError("Vui lòng cho phép sử dụng micro trong cài đặt Safari");
-                setIsListening(false);
-            }
-            console.warn("SpeechRecognition error:", event.error);
-        };
-
-        recognition.onend = () => {
-            if (cancelled) return;
-            if (isMutedRef.current) return; // TTS is speaking, don't restart
-            try { recognition.start(); } catch { /* already running */ }
-        };
-
-        recognitionRef.current = recognition;
-        try {
-            recognition.start();
-        } catch {
-            setMicError("Không thể bật micro.");
-            setIsListening(false);
-        }
-
-        return () => {
-            cancelled = true;
-            if (recognitionRef.current) {
-                try { recognitionRef.current.abort(); } catch { /* safe */ }
-                recognitionRef.current = null;
-            }
-        };
-    }, [isListening]);
-
-    // ── Render ──
-    if (!recipe) return null;
-
-    const toggleAudio = () => setIsAudioPlaying(prev => !prev);
-    const toggleVoice = () => {
-        setIsListening(prev => !prev);
-        setMicError(null);
+  }, [recipe, safe, step]);
+  useEffect(() => {
+    if (!safe || !('wakeLock' in navigator)) return;
+    let cancelled = false;
+    let lock: WakeLockSentinel | undefined;
+    async function keepAwake() {
+      if (document.hidden) return;
+      try {
+        const result = await navigator.wakeLock.request('screen');
+        if (cancelled) await result.release();
+        else lock = result;
+      } catch {
+        /* Cooking still works without wake lock. */
+      }
+    }
+    void keepAwake();
+    document.addEventListener('visibilitychange', keepAwake);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', keepAwake);
+      void lock?.release().catch(() => {});
     };
-    const progress = ((currentStep + 1) / steps.length) * 100;
-
+  }, [safe]);
+  if (!recipe)
     return (
-        <div className="flex flex-col h-[650px] md:min-h-[700px] lg:h-[80vh] w-full max-w-4xl mx-auto px-2 md:px-8 animate-in slide-in-from-right-8 duration-500">
-            <div className="flex items-center justify-between py-2">
-                <Button variant="ghost" size="icon" onClick={() => router.push("/result")} className="-ml-2 hover:bg-white/50 backdrop-blur-sm">
-                    <ChevronLeft />
-                </Button>
-                <div className="flex flex-col items-center liquid-glass-item px-4 md:px-8 py-1.5 rounded-2xl border border-white/20 shadow-sm">
-                    <span className="font-extrabold text-[15px] md:text-lg truncate max-w-[200px] md:max-w-md text-zinc-900 dark:text-white">
-                        {recipeName}
-                    </span>
-                    <span className="text-xs md:text-sm text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
-                        Bước {currentStep + 1} / {steps.length}
-                    </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    {/* Mic Toggle */}
-                    <Button
-                        variant="secondary"
-                        size="icon"
-                        onClick={toggleVoice}
-                        className={`liquid-glass-item rounded-full shadow-sm border transition-all duration-300 ${isListening
-                            ? "text-blue-600 border-blue-300/50 shadow-[0_0_20px_rgba(59,130,246,0.35)] scale-[1.08]"
-                            : "text-zinc-400 border-white/50 hover:text-blue-500"
-                            }`}
-                    >
-                        {isListening ? <Mic size={20} className="animate-pulse" /> : <MicOff size={20} />}
-                    </Button>
-                    {/* TTS Toggle */}
-                    <Button
-                        variant="secondary"
-                        size="icon"
-                        onClick={toggleAudio}
-                        className={`liquid-glass-item rounded-full shadow-sm border border-white/50 transition-all ${isAudioPlaying ? "text-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.3)] scale-[1.05]" : "text-zinc-500"}`}
-                    >
-                        {isAudioPlaying ? <Volume2 size={22} className="animate-pulse" /> : <VolumeX size={22} />}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Mic permission error */}
-            {micError && (
-                <div className="text-center py-1">
-                    <span className="text-xs text-red-500 font-medium">{micError}</span>
-                </div>
-            )}
-
-            <div className="h-2 w-full liquid-glass-input rounded-full overflow-hidden my-4 shadow-inner border border-white/20">
-                <div
-                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700 ease-spring"
-                    style={{ width: `${progress}%`, transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 1.275)" }}
-                />
-            </div>
-
-            {/* Card Area */}
-            <div className="flex-1 flex items-center justify-center relative overflow-hidden py-4">
-                <div
-                    key={currentStep}
-                    className="absolute inset-x-2 liquid-glass-item border-[1.5px] border-white/30 dark:border-white/10 rounded-[3rem] p-8 flex flex-col justify-center items-center h-[90%] transition-all duration-500 animate-in fade-in zoom-in-95"
-                >
-                    <div className="w-20 h-20 liquid-glass-item text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center font-extrabold text-3xl mb-8 border border-white/50">
-                        {currentStep + 1}
-                    </div>
-
-                    <p className="text-[22px] text-center leading-relaxed font-bold text-zinc-800 dark:text-zinc-200">
-                        {steps[currentStep].text}
-                    </p>
-
-                    {/* Voice Feedback Bubble */}
-                    {voiceFeedback && (
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 liquid-glass-item px-5 py-2.5 rounded-full border border-blue-300/40 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
-                                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">{voiceFeedback}</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Unified Status Badge */}
-                    {(isListening || isMuted) && !voiceFeedback && (
-                        <div className={`absolute top-6 right-6 flex items-center gap-1.5 liquid-glass-item px-3 py-2 rounded-full border transition-all duration-300 ${isMuted ? "border-emerald-200/50" : "border-blue-200/50"
-                            }`}>
-                            <span className={`text-xs font-bold mr-0.5 uppercase ${isMuted ? "text-emerald-600" : "text-blue-600"
-                                }`}>
-                                {isMuted ? "Đang đọc" : "Đang nghe"}
-                            </span>
-                            <span className={`w-1 h-3 rounded-full animate-bounce [animation-delay:-0.3s] ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
-                            <span className={`w-1 h-4 rounded-full animate-bounce [animation-delay:-0.15s] ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
-                            <span className={`w-1 h-2 rounded-full animate-bounce ${isMuted ? "bg-emerald-500" : "bg-blue-500"}`} />
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Last heard transcript */}
-            {isListening && lastTranscript && (
-                <div className="text-center mb-1">
-                    <span className="text-xs text-zinc-400 italic">&quot;{lastTranscript}&quot;</span>
-                </div>
-            )}
-
-            <div className="py-4 flex gap-4 w-full justify-between items-center z-10">
-                <Button
-                    variant="secondary"
-                    size="lg"
-                    className="flex-1 h-16 rounded-full font-bold shadow-sm"
-                    disabled={currentStep === 0}
-                    onClick={handlePrev}
-                >
-                    <ArrowLeft className="mr-2 opacity-70" /> Lùi Lại
-                </Button>
-
-                {currentStep === steps.length - 1 ? (
-                    <Button
-                        size="lg"
-                        className="flex-[2] h-16 text-lg rounded-[2rem] shadow-[0_8px_24px_rgba(16,185,129,0.3)] font-bold group border-t-2 border-emerald-300/50"
-                        onClick={() => router.push("/")}
-                    >
-                        <CheckCircle className="mr-2" /> Xong Bữa Nay
-                    </Button>
-                ) : (
-                    <Button
-                        size="lg"
-                        className="flex-[2] h-16 text-lg rounded-[2rem] shadow-[0_8px_24px_rgba(16,185,129,0.3)] font-bold group border-t-2 border-emerald-300/50"
-                        onClick={handleNext}
-                    >
-                        Bước Tiếp <ArrowRight className="ml-2 transition-transform group-hover:translate-x-1" />
-                    </Button>
-                )}
-            </div>
-        </div>
+      <div className="empty panel">
+        <h1>Chọn món để vào bếp</h1>
+        <Link className="btn" href="/library">
+          Món đã lưu
+        </Link>
+      </div>
     );
+  if (!safe)
+    return (
+      <div className="stack">
+        <Notice kind="danger">
+          Công thức chưa phù hợp với hồ sơ dị ứng hoặc còn nguyên liệu chưa xác nhận.
+        </Notice>
+        <Link className="btn" href="/result">
+          Kiểm tra công thức
+        </Link>
+      </div>
+    );
+  const last = step === recipe.steps.length - 1;
+  return (
+    <div className="cooking-focus">
+      <header className="focus-header">
+        <Link className="btn btn-tertiary focus-exit-btn" href="/result" onClick={stop}>
+          <ArrowLeft size={20} />
+          <span>Thoát</span>
+        </Link>
+        <span className="focus-step-indicator">
+          Bước {step + 1} / {recipe.steps.length}
+        </span>
+        <div className="focus-header-actions">
+          {/* Nút Loa / Đọc to thành tiếng */}
+          <button
+            type="button"
+            className={`focus-action-btn ${autoRead ? 'is-active' : ''}`}
+            aria-label={autoRead ? 'Tắt đọc thành tiếng' : 'Bật đọc thành tiếng'}
+            title={autoRead ? 'Đang bật tự đọc (Bấm để tắt)' : 'Tự đọc bước nấu (Bấm để bật)'}
+            onClick={() => {
+              if (autoRead) {
+                stop();
+                voice.setAutoRead(false);
+              } else {
+                voice.setAutoRead(true);
+                if (recipe) speak(recipe.steps[step].text);
+              }
+            }}
+          >
+            {autoRead ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          </button>
+
+          {/* Nút Mic / Giọng nói rảnh tay */}
+          <button
+            type="button"
+            className={`focus-action-btn ${voice.listening ? 'is-active is-listening' : ''}`}
+            aria-label={voice.listening ? 'Tắt micro rảnh tay' : 'Bật micro rảnh tay'}
+            title={
+              voice.listening
+                ? 'Micro đang nghe lệnh giọng nói (Bấm để tắt)'
+                : 'Bật micro điều khiển giọng nói (Bấm để bật)'
+            }
+            onClick={voice.toggleListening}
+          >
+            {voice.listening ? <Mic size={20} /> : <MicOff size={20} />}
+            {voice.listening && <span className="mic-pulse-dot" />}
+          </button>
+        </div>
+      </header>
+      <div
+        className="focus-progress"
+        aria-label={'Tiến độ ' + (step + 1) + '/' + recipe.steps.length}
+      >
+        <span style={{ width: ((step + 1) / recipe.steps.length) * 100 + '%' }} />
+      </div>
+      <section className="focus-instruction" aria-live="polite">
+        <h1>{recipe.steps[step].text}</h1>
+        {!!recipe.steps[step].durationSeconds && (
+          <StepTimer
+            key={step}
+            seconds={recipe.steps[step].durationSeconds!}
+            storageKey={'mind-cooking-timer-' + recipe.id + '-' + step}
+          />
+        )}
+      </section>
+      <footer className="focus-controls">
+        <div className="focus-navigation">
+          <button
+            className="btn btn-secondary"
+            disabled={!step}
+            onClick={() => {
+              stop();
+              move(-1);
+            }}
+          >
+            <ArrowLeft size={23} />
+            Bước trước
+          </button>
+          {last ? (
+            <Link className="btn" href="/cooking/complete" onClick={stop}>
+              Xong món <Check size={23} />
+            </Link>
+          ) : (
+            <button
+              className="btn"
+              onClick={() => {
+                stop();
+                move(1);
+              }}
+            >
+              Bước tiếp <ArrowRight size={23} />
+            </button>
+          )}
+        </div>
+        <button
+          className="btn focus-stop"
+          onClick={() => {
+            stop();
+            setFeedback('Đã dừng đọc.');
+          }}
+        >
+          <Square size={18} />
+          Dừng đọc ngay
+        </button>
+        <details className="voice-options">
+          <summary>
+            Giọng nói và đọc hướng dẫn <Volume2 size={17} />
+          </summary>
+          <div className="voice-option-buttons">
+            <button
+              className="btn btn-secondary"
+              aria-pressed={autoRead}
+              onClick={() => {
+                if (autoRead) stop();
+                voice.setAutoRead(!autoRead);
+              }}
+            >
+              {autoRead ? 'Tắt tự đọc' : 'Bật tự đọc'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              aria-pressed={voice.listening}
+              onClick={voice.toggleListening}
+            >
+              {voice.listening ? 'Tắt micro' : 'Bật micro rảnh tay'}
+            </button>
+            <button className="btn btn-secondary" onClick={() => speak(recipe.steps[step].text)}>
+              Đọc lại
+            </button>
+          </div>
+          <p className="small muted">Nói “tiếp”, “quay lại”, “đọc lại” hoặc “dừng”.</p>
+        </details>
+        {voice.error && <Notice kind="warning">{voice.error}</Notice>}
+        <span className="sr-only" aria-live="polite">
+          {feedback}
+        </span>
+      </footer>
+    </div>
+  );
 }

@@ -1,66 +1,36 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { Header } from "@/components/layout/header";
+import type { Metadata } from 'next';
+import { Lora, Plus_Jakarta_Sans } from 'next/font/google';
+import './globals.css';
+import { AppShell } from '@/components/app-shell';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const lora = Lora({
+  subsets: ['vietnamese', 'latin'],
+  variable: '--font-serif',
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const sans = Plus_Jakarta_Sans({
+  subsets: ['vietnamese', 'latin'],
+  variable: '--font-sans',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://mindaikitchen.vercel.app"),
-  title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
-  description: "Trợ lý dinh dưỡng và nấu ăn cá nhân hóa với AI",
-  icons: {
-    icon: "/icon.svg",
+  metadataBase: new URL(process.env.APP_ORIGIN || 'http://localhost:3000'),
+  title: {
+    default: "Mind AI's Kitchen · Chụp nguyên liệu, chọn món",
+    template: "%s · Mind AI's Kitchen",
   },
-  openGraph: {
-    title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
-    description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
-    url: "https://mindaikitchen.vercel.app",
-    siteName: "Mind AI Kitchen",
-    images: [
-      {
-        url: "/opengraph-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Mind AI Kitchen Banner",
-      },
-    ],
-    locale: "vi_VN",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Mind AI's Kitchen | Trợ lý Dinh Dưỡng",
-    description: "Chụp ảnh tủ lạnh - Nấu ăn ngon ngay lập tức với Mind-GPT.",
-    images: ["/opengraph-image.png"],
-  },
+  description: 'Chuẩn bị nguyên liệu, lưu công thức và nấu từng bước theo khẩu vị của bạn.',
+  icons: { icon: '/icon.svg' },
+  robots: { index: false, follow: false },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-animated-mesh font-sans min-h-screen flex flex-col items-center justify-center p-0 md:p-8`}
-      >
-        {/* Global Application */}
-        <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col liquid-glass md:rounded-[40px] overflow-hidden relative shadow-2xl">
-          <Header />
-          <main className="flex-1 w-full p-4 md:p-6 overflow-y-auto no-scrollbar pb-24">
-            {children}
-          </main>
-        </div>
+    <html lang="vi" className={`${lora.variable} ${sans.variable}`}>
+      <body className={sans.className}>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

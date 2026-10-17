@@ -1,167 +1,427 @@
-"use strict";
-"use client";
+'use client';
+import Link from 'next/link';
+import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  Users,
+  CheckCircle2,
+  Circle,
+  Save,
+  Star,
+  Flame,
+} from 'lucide-react';
+import { useAppStore } from '@/store/useAppStore';
+import type { SavedRecipeRecord } from '@/types/domain';
+import { reviewRecipe } from '@/lib/recipe-review';
+import { ALLERGEN_NOTICE } from '@/lib/allergenSynonyms';
+import { db, saveRecipeToDB } from '@/lib/db';
+import { Notice } from '@/components/notice';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Flame, Utensils, Timer, Play, ChevronRight, CheckCircle2, Sparkles, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/store/useAppStore";
-import { Card, CardContent } from "@/components/ui/card";
-
+function Feedback({ record }: { record: SavedRecipeRecord }) {
+  const [rating, setRating] = useState(record.rating || 0);
+  const [notes, setNotes] = useState(record.notes || '');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    setMessage('');
+    setError('');
+    try {
+      await db.recipes.update(record.id, {
+        rating: rating || undefined,
+        notes: notes.trim(),
+        updatedAt: Date.now(),
+      });
+      setMessage('Đã lưu. Phản hồi này sẽ được dùng khi gợi ý món tiếp theo.');
+    } catch {
+      setError('Chưa lưu được phản hồi. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="panel stack">
+      <div>
+        <p className="eyebrow">Ghi chú của riêng bạn</p>
+        <h2>Lần sau, mình sẽ…</h2>
+      </div>
+      <div className="rating" role="group" aria-label="Đánh giá công thức">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            aria-label={n + ' sao'}
+            aria-pressed={rating === n}
+            className={rating >= n ? 'selected' : ''}
+            onClick={() => setRating(n)}
+          >
+            <Star
+              size={17}
+              style={{ margin: 'auto' }}
+              fill={rating >= n ? 'currentColor' : 'none'}
+            />
+          </button>
+        ))}
+      </div>
+      <label className="field">
+        Ghi chú khẩu vị
+        <textarea
+          maxLength={500}
+          placeholder="Ví dụ: lần sau bớt cay, thêm rau, nấu mềm hơn…"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </label>
+      <button className="btn btn-secondary" onClick={save} disabled={saving}>
+        Lưu phản hồi
+      </button>
+      {message && <Notice kind="success">{message}</Notice>}
+      {error && <Notice kind="danger">{error}</Notice>}
+    </section>
+  );
+}
 export default function ResultPage() {
-    const router = useRouter();
-    const { currentRecipe: recipe } = useAppStore();
-
-    useEffect(() => {
-        if (!recipe) {
-            router.push("/scan");
-        }
-    }, [recipe, router]);
-
-    if (!recipe) return null;
-
-    const calculateMacroPercentage = (value: number, total: number) => {
-        return Math.round((value / total) * 100);
-    };
-
-    const totalMacros = recipe.macros.protein + recipe.macros.carbs + recipe.macros.fat;
-    const pPct = calculateMacroPercentage(recipe.macros.protein, totalMacros);
-    const cPct = calculateMacroPercentage(recipe.macros.carbs, totalMacros);
-    const fPct = calculateMacroPercentage(recipe.macros.fat, totalMacros);
-
+  const { currentRecipe, profile, setScannedIngredients } = useAppStore();
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  const record = useLiveQuery(
+    () => (currentRecipe ? db.recipes.get(currentRecipe.id) : undefined),
+    [currentRecipe?.id],
+  );
+  if (!currentRecipe)
     return (
-        <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto pt-4 pb-28 px-2 md:px-8 animate-in fade-in zoom-in-95 duration-700 relative">
-            <div className="flex items-center justify-between mb-2">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/scan')} className="-ml-3 hover:bg-white/50 backdrop-blur-sm">
-                    <ChevronLeft />
-                </Button>
-                <div className="flex items-center gap-1.5 liquid-glass-item px-4 py-1.5 rounded-full border border-white/20 dark:border-white/10 shadow-sm">
-                    <span className="font-bold text-sm bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">Match 98%</span>
-                    <Sparkles className="text-yellow-400" size={16} />
-                </div>
-                <div className="w-10"></div>
-            </div>
-
-            <div className="space-y-6">
-                <div className="space-y-4">
-                    <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white drop-shadow-sm leading-tight text-balance">
-                        {recipe.name}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                        <span className="flex items-center gap-1.5 liquid-glass-item px-3 py-1.5 rounded-full shadow-sm border border-white/20 dark:border-white/10">
-                            <Flame size={18} className="text-orange-500 drop-shadow-sm" /> {recipe.calories} kcal
-                        </span>
-                        <span className="flex items-center gap-1.5 liquid-glass-item px-3 py-1.5 rounded-full shadow-sm border border-white/20 dark:border-white/10 text-zinc-700 dark:text-zinc-200">
-                            <Timer size={16} className="text-blue-500" /> {recipe.time}
-                        </span>
-                        <span className="flex items-center gap-1.5 liquid-glass-item px-3 py-1.5 rounded-full shadow-sm border border-white/20 dark:border-white/10 text-zinc-700 dark:text-zinc-200">
-                            <Utensils size={16} className="text-purple-500" /> {recipe.difficulty}
-                        </span>
-                        <span className="flex items-center gap-1.5 liquid-glass-item px-3 py-1.5 rounded-full shadow-sm border border-white/20 dark:border-white/10 text-emerald-700 dark:text-emerald-200 font-bold">
-                            <Users size={16} className="text-emerald-500" /> {recipe.servings} người ăn
-                        </span>
-                    </div>
-                </div>
-
-                <Card className="liquid-glass-item border-emerald-200/50 dark:border-emerald-900/50 shadow-inner">
-                    <CardContent className="p-5 flex gap-3 text-emerald-900 dark:text-emerald-100">
-                        <div className="mt-0.5 shrink-0 liquid-glass-item p-1.5 rounded-full shadow-sm h-fit">
-                            <CheckCircle2 size={20} className="text-emerald-500" />
-                        </div>
-                        <p className="text-[15px] font-medium leading-relaxed">
-                            <span className="font-extrabold block mb-1 text-emerald-700 dark:text-emerald-400">Mind-GPT Lời Khuyên:</span>
-                            {recipe.ai_verdict}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                {/* Nutrition Macros */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className="md:col-span-1 h-full">
-                        <CardContent className="p-5 flex flex-col h-full">
-                            <h3 className="font-extrabold text-lg flex items-center gap-2 mb-4">
-                                Dinh dưỡng
-                                <span className="text-xs bg-zinc-100/80 dark:bg-zinc-800/80 px-2 py-0.5 rounded-full text-zinc-500 font-semibold uppercase tracking-wider">Macros</span>
-                            </h3>
-
-                            {/* Progress Bars */}
-                            <div className="h-3 w-full rounded-full flex shadow-inner liquid-glass-input overflow-hidden mb-6 border border-white/20">
-                                <div style={{ width: `${pPct}%` }} className="bg-gradient-to-r from-blue-400 to-blue-500 h-full"></div>
-                                <div style={{ width: `${cPct}%` }} className="bg-gradient-to-r from-emerald-400 to-emerald-500 h-full"></div>
-                                <div style={{ width: `${fPct}%` }} className="bg-gradient-to-r from-amber-400 to-amber-500 h-full"></div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2 text-center">
-                                <div className="liquid-glass-item rounded-2xl p-3 border border-white/20 dark:border-white/5">
-                                    <div className="flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs uppercase mb-1">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div> Đạm
-                                    </div>
-                                    <p className="font-extrabold text-xl font-mono">{recipe.macros.protein}g</p>
-                                </div>
-
-                                <div className="liquid-glass-item rounded-2xl p-3 border border-white/20 dark:border-white/5">
-                                    <div className="flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase mb-1">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div> Tinh bột
-                                    </div>
-                                    <p className="font-extrabold text-xl font-mono">{recipe.macros.carbs}g</p>
-                                </div>
-
-                                <div className="liquid-glass-item rounded-2xl p-3 border border-white/20 dark:border-white/5">
-                                    <div className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold text-xs uppercase mb-1">
-                                        <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></div> Béo
-                                    </div>
-                                    <p className="font-extrabold text-xl font-mono">{recipe.macros.fat}g</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="md:col-span-1 h-full">
-                        <CardContent className="p-5 flex flex-col h-full">
-                            <h3 className="font-extrabold text-lg mb-4">Nguyên liệu cần dùng</h3>
-                            <ul className="space-y-3 mb-6">
-                                {recipe.ingredients.map((ing, idx) => (
-                                    <li key={idx} className="flex items-center gap-3 text-sm font-medium liquid-glass-item p-3 rounded-2xl border border-white/20 dark:border-white/5">
-                                        <div className="w-8 h-8 rounded-full bg-white/60 dark:bg-zinc-800 flex items-center justify-center text-emerald-600 font-bold shrink-0 shadow-sm border border-emerald-100">
-                                            {idx + 1}
-                                        </div>
-                                        {ing}
-                                    </li>
-                                ))}
-                            </ul>
-
-                            {recipe.suggestedAdditions && recipe.suggestedAdditions.length > 0 && (
-                                <div className="p-4 liquid-glass-item rounded-2xl border border-orange-200/50 dark:border-orange-900/50">
-                                    <h4 className="font-bold text-sm text-orange-700 dark:text-orange-400 mb-2 flex items-center gap-1.5">
-                                        <Sparkles size={16} /> Gợi ý (tùy chọn)
-                                    </h4>
-                                    <div className="flex flex-col gap-2">
-                                        {recipe.suggestedAdditions.map((suggestion, idx) => (
-                                            <div key={idx} className="text-sm font-medium text-orange-800 dark:text-orange-300">
-                                                • {suggestion}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-
-            {/* Floating Action Button */}
-            <div className="absolute bottom-6 left-0 right-0 px-4 pointer-events-none flex justify-center">
-                <Button
-                    className="w-full max-w-[320px] h-16 text-lg rounded-[2rem] shadow-[0_8px_32px_0_rgba(16,185,129,0.3)] group pointer-events-auto border-t-2 border-emerald-300/50"
-                    onClick={() => router.push("/cooking")}
-                >
-                    <Play className="mr-2 fill-current w-5 h-5 drop-shadow-sm" />
-                    <span className="font-bold tracking-wide">Bắt Đầu Nấu</span>
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center ml-auto group-hover:bg-white/30 transition-colors">
-                        <ChevronRight className="w-5 h-5" />
-                    </div>
-                </Button>
-            </div>
-        </div>
+      <div className="empty panel">
+        <h1>Chưa có công thức nào đang mở.</h1>
+        <p>Chọn món trong sổ hoặc tạo một món mới từ nguyên liệu sẵn có.</p>
+        <Link className="btn" href="/scan">
+          Chuẩn bị nguyên liệu <ArrowRight size={17} />
+        </Link>
+      </div>
     );
+  const recipe = reviewRecipe(currentRecipe, profile);
+  const canCook = !recipe.audit.hasRisk && recipe.ingredients.every((i) => i.confirmed);
+  async function save() {
+    try {
+      await saveRecipeToDB(recipe);
+      setSaved(true);
+      setError('');
+    } catch {
+      setError('Chưa lưu được công thức. Kiểm tra quyền lưu dữ liệu của trình duyệt.');
+    }
+  }
+  return (
+    <div>
+      <Link href="/library" className="btn btn-tertiary">
+        <ArrowLeft size={16} />
+        Sổ công thức
+      </Link>
+      <div className="page-head recipe-title" style={{ marginTop: 20 }}>
+        <p className="eyebrow">02 · Công thức của bạn</p>
+        <h1>{recipe.name}</h1>
+        <p>{recipe.summary}</p>
+        <div className="recipe-meta">
+          <span>
+            <Clock size={16} />
+            {recipe.minutes} phút
+          </span>
+          <span>
+            <Users size={16} />
+            {recipe.servings} phần ăn
+          </span>
+          <span>{recipe.difficulty}</span>
+          {recipe.nutrition.complete && recipe.nutrition.calories ? (
+            <span style={{ color: '#e11d48', fontWeight: 600 }}>
+              <Flame size={16} />
+              {Math.round(recipe.nutrition.calories / recipe.servings)} kcal / phần
+            </span>
+          ) : (
+            <span style={{ color: 'var(--muted)' }} title="Chưa có khối lượng thực tế để tính calo chuẩn">
+              <Flame size={16} />
+              Chưa cân gram
+            </span>
+          )}
+          <span>{record || saved ? 'Đã lưu trong sổ' : 'Chưa lưu vào sổ'}</span>
+        </div>
+        <div className="row wrap">
+          {canCook ? (
+            <Link href="/cooking" className="btn">
+              Vào bếp, từng bước một <ArrowRight size={17} />
+            </Link>
+          ) : (
+            <button className="btn" disabled>
+              Cần xử lý dị ứng trước khi nấu
+            </button>
+          )}
+          <Link
+            href="/scan"
+            className="btn btn-secondary"
+            onClick={() => setScannedIngredients(recipe.ingredients)}
+          >
+            Điều chỉnh & tạo lại
+          </Link>
+          {!record && !saved && (
+            <button className="btn btn-secondary" onClick={save}>
+              <Save size={16} />
+              Lưu công thức
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <Notice kind="danger">{error}</Notice>}
+      {recipe.audit.hasRisk && (
+        <Notice kind="danger">
+          <strong>Công thức xung đột với hồ sơ hiện tại.</strong>
+          <ul>
+            {recipe.audit.flags.map((f, i) => (
+              <li key={i}>
+                {f.group}: {f.ingredient}
+              </li>
+            ))}
+          </ul>
+          Hãy điều chỉnh nguyên liệu và tạo lại toàn bộ công thức. Các bước cũ chưa phù hợp để tiếp
+          tục nấu.
+        </Notice>
+      )}
+      <div className="recipe-layout" style={{ marginTop: 28 }}>
+        <div className="stack">
+          <section className="panel">
+            <div className="panel-header">
+              <h2>Chuẩn bị</h2>
+              <span className="badge">{recipe.servings} phần</span>
+            </div>
+            <ul className="ingredient-list">
+              {recipe.ingredients.map((i) => (
+                <li key={i.id}>
+                  <span>{i.name}</span>
+                  <span>{i.grams ? i.grams + ' g' : 'Chưa cân'}</span>
+                </li>
+              ))}
+            </ul>
+            {recipe.nutrition.complete && recipe.nutrition.macros ? (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: '12px 16px',
+                  background: 'var(--card-subtle, rgba(0,0,0,0.03))',
+                  borderRadius: 10,
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 6,
+                  }}
+                >
+                  <strong
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 14,
+                      color: '#e11d48',
+                    }}
+                  >
+                    <Flame size={16} />
+                    Dinh dưỡng: {Math.round(recipe.nutrition.calories! / recipe.servings)} kcal / phần
+                  </strong>
+                  <span className="small muted">Đối chiếu chuẩn USDA</span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 16,
+                    fontSize: 13,
+                    color: 'var(--muted)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <span style={{ borderLeft: '3px solid #e11d48', paddingLeft: 8 }}>
+                    Đạm:{' '}
+                    <strong style={{ color: 'var(--text)' }}>
+                      {Math.round((recipe.nutrition.macros.protein / recipe.servings) * 10) / 10}g
+                    </strong>
+                  </span>
+                  <span style={{ borderLeft: '3px solid #d97706', paddingLeft: 8 }}>
+                    Tinh bột:{' '}
+                    <strong style={{ color: 'var(--text)' }}>
+                      {Math.round((recipe.nutrition.macros.carbs / recipe.servings) * 10) / 10}g
+                    </strong>
+                  </span>
+                  <span style={{ borderLeft: '3px solid #059669', paddingLeft: 8 }}>
+                    Chất béo:{' '}
+                    <strong style={{ color: 'var(--text)' }}>
+                      {Math.round((recipe.nutrition.macros.fat / recipe.servings) * 10) / 10}g
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: '14px 16px',
+                  background: 'var(--card-subtle, rgba(0,0,0,0.02))',
+                  borderRadius: 10,
+                  border: '1px dashed var(--line)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <Flame
+                    size={20}
+                    color="var(--muted)"
+                    style={{ marginTop: 2, flexShrink: 0 }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: 13, display: 'block', marginBottom: 2 }}>
+                      Ước tính Calo & Dinh dưỡng: Chưa có số liệu
+                    </strong>
+                    <p className="small muted" style={{ margin: 0, lineHeight: 1.5 }}>
+                      Các nguyên liệu hiện <strong>Chưa cân</strong>. Để bảo đảm an toàn cho sức khỏe, Mind AI Kitchen tuân thủ chuẩn USDA và không để AI tự bịa số calo ảo.
+                    </p>
+                    <Link
+                      href="/scan"
+                      className="link small"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        marginTop: 8,
+                        fontWeight: 600,
+                        color: 'var(--accent, #10b981)',
+                      }}
+                      onClick={() => setScannedIngredients(recipe.ingredients)}
+                    >
+                      Bấm vào đây để nhập số gram cho từng món và xem Calo →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="small muted" style={{ marginTop: 14, marginBottom: 0 }}>
+              Định lượng cho toàn bộ món. Nước sạch có thể dùng thêm; dầu và gia vị cần có trong
+              danh sách.
+            </p>
+          </section>
+          <section className="panel">
+            <h2>Cách làm</h2>
+            <ol className="recipe-steps">
+              {recipe.steps.map((s, i) => (
+                <li key={s.id}>
+                  <span className="step-label">{i + 1}</span>
+                  <div>
+                    <p>{s.text}</p>
+                    {!!s.durationSeconds && (
+                      <small className="muted">
+                        Hẹn giờ: {Math.ceil(s.durationSeconds / 60)} phút
+                      </small>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+          {record && <Feedback key={record.id} record={record} />}
+        </div>
+        <aside className="stack">
+          <section className="panel">
+            <p className="eyebrow">Biết rõ những gì mình ăn</p>
+            <h2>Dinh dưỡng tham khảo</h2>
+            {recipe.nutrition.complete && recipe.nutrition.macros ? (
+              <>
+                <div className="metric-value">
+                  {Math.round(recipe.nutrition.calories! / recipe.servings)}
+                  <span>kcal / phần</span>
+                </div>
+                <div className="nutrition-grid">
+                  {(
+                    [
+                      ['Đạm', recipe.nutrition.macros.protein, 'protein', '#e11d48'],
+                      ['Tinh bột', recipe.nutrition.macros.carbs, 'carbs', '#d97706'],
+                      ['Chất béo', recipe.nutrition.macros.fat, 'fat', '#059669'],
+                    ] as const
+                  ).map(([label, value, key, color]) => (
+                    <div
+                      className={`nutrition-cell nutrition-cell-${key}`}
+                      key={label}
+                      style={{ borderLeftColor: color }}
+                    >
+                      <strong>
+                        {Math.round((value / recipe.servings) * 10) / 10}
+                        <small style={{ display: 'inline' }}> g</small>
+                      </strong>
+                      <small>{label}</small>
+                    </div>
+                  ))}
+                </div>
+                <p className="small muted">
+                  {recipe.nutrition.calories} kcal cho toàn món. Ước tính từ khối lượng và bản ghi
+                  thực phẩm; cách chế biến có thể làm thay đổi giá trị.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="muted small">
+                  Chưa đủ dữ liệu để tính tổng calories và macros. Không sử dụng số ước đoán của AI.
+                </p>
+                <Notice kind="info">
+                  {recipe.nutrition.matched}/{recipe.nutrition.total} nguyên liệu đối chiếu được.
+                  Còn thiếu khối lượng hoặc bản ghi phù hợp: {recipe.nutrition.missing.join(', ')}.
+                </Notice>
+              </>
+            )}
+            <hr className="divider" />
+            <ul className="source-list">
+              {recipe.nutrition.items.map((i, index) => (
+                <li key={index}>
+                  <a href={i.source.url} target="_blank" rel="noopener noreferrer">
+                    {i.name} · {i.grams} g → {i.calories} kcal ↗
+                  </a>
+                  <p>
+                    {i.source.title} · {i.source.note}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="panel">
+            <h3>Những gì đã được kiểm tra</h3>
+            {recipe.checks.map((check) => (
+              <div className="review-check" key={check.label}>
+                {check.passed ? <CheckCircle2 size={17} /> : <Circle size={17} />}
+                <div>
+                  <strong>{check.label}</strong>
+                  <p>{check.detail}</p>
+                </div>
+              </div>
+            ))}
+            <hr className="divider" />
+            <p className="small muted">{ALLERGEN_NOTICE}</p>
+          </section>
+          <section className="panel">
+            <h3>Nguồn để bạn kiểm tra</h3>
+            <ul className="source-list">
+              {recipe.sources.map((source) => (
+                <li key={source.url}>
+                  <a href={source.url} target="_blank" rel="noopener noreferrer">
+                    {source.title} ↗
+                  </a>
+                  <p>{source.note}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="small muted" style={{ marginTop: 16, marginBottom: 0 }}>
+              Công thức do {recipe.model} tạo. Các nguồn trên cung cấp dữ liệu và hướng dẫn chung,
+              không chứng nhận riêng công thức này.
+            </p>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
 }
