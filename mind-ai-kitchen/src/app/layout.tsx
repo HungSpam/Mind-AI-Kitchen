@@ -1,19 +1,6 @@
 import type { Metadata } from 'next';
-import { Lora, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/app-shell';
-
-const lora = Lora({
-  subsets: ['vietnamese', 'latin'],
-  variable: '--font-serif',
-  display: 'swap',
-});
-
-const sans = Plus_Jakarta_Sans({
-  subsets: ['vietnamese', 'latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_ORIGIN || 'http://localhost:3000'),
@@ -28,8 +15,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={`${lora.variable} ${sans.variable}`}>
-      <body className={sans.className}>
+    <html lang="vi">
+      <body>
         <AppShell>{children}</AppShell>
       </body>
     </html>

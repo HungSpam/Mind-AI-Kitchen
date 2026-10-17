@@ -17,6 +17,8 @@ export class MindKitchenDatabase extends Dexie {
     { id: string; kind: 'recipe' | 'meal' | 'profile'; payload: unknown },
     string
   >;
+  cloudSyncKeys!: Table<{ id: string; userId: string; kind: string; localId: string; cloudId: string }, string>;
+  cloudSyncStates!: Table<{ userId: string; importCompletedAt?: number }, string>;
   constructor(name = 'MindKitchenDB') {
     super(name);
     this.version(1).stores({
@@ -29,6 +31,10 @@ export class MindKitchenDatabase extends Dexie {
       profileRevisions: 'id, createdAt',
     });
     this.version(3).stores({ legacyArchive: 'id, kind' });
+    this.version(4).stores({
+      cloudSyncKeys: 'id, userId, kind, localId',
+      cloudSyncStates: 'userId, importCompletedAt',
+    });
   }
 }
 export const db = new MindKitchenDatabase();

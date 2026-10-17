@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Camera, ArrowRight, ChefHat } from 'lucide-react';
+import { Camera, ArrowRight, ChefHat, CalendarDays, Flame } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { useAppStore } from '@/store/useAppStore';
@@ -13,6 +13,18 @@ export default function Home() {
     () => db.recipes.orderBy('createdAt').reverse().limit(3).toArray(),
     [],
   );
+  const today = useLiveQuery(async () => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const logs = await db.mealLogs.where('consumedAt').between(start.getTime(), end.getTime(), true, false).toArray();
+    return {
+      count: logs.length,
+      calories: logs.reduce((sum, meal) => sum + (meal.calories ?? 0), 0),
+      incomplete: logs.some((meal) => meal.calories === null),
+    };
+  }, []);
   const { setCurrentRecipe } = useAppStore();
   return (
     <div className="home-page">
@@ -32,6 +44,15 @@ export default function Home() {
         <Link className="text-action" href="/scan">
           Chọn ảnh hoặc thêm nguyên liệu <ArrowRight size={16} />
         </Link>
+      </section>
+      <section className="home-today" aria-labelledby="today-heading">
+        <div className="section-row"><h2 id="today-heading">Hôm nay</h2><Link href="/journal">Nhật ký <ArrowRight size={15} /></Link></div>
+        <div className="home-today-grid">
+          <div><CalendarDays size={19} /><strong>{today?.count ?? '—'}</strong><span>bữa đã ghi</span></div>
+          <div><Flame size={19} /><strong>{today ? today.calories.toLocaleString('vi-VN') : '—'}</strong><span>kcal đã biết</span></div>
+        </div>
+        {today?.incomplete && <small>Một số món chưa có đủ dữ liệu dinh dưỡng nên tổng kcal đang thiếu.</small>}
+        {today?.count === 0 && <small>Ghi món đã ăn để xem lại thói quen theo ngày.</small>}
       </section>
       {currentRecipe && (
         <Link className="resume-card" href="/cooking">

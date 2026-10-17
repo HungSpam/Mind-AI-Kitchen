@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { LayoutGrid, BookOpen, SlidersHorizontal, Plus, CalendarDays, Info } from 'lucide-react';
+import { LayoutGrid, BookOpen, UserRound, Plus, UsersRound, Info } from 'lucide-react';
 import { hydrationIssue } from '@/store/useAppStore';
 import { Notice } from './notice';
 import { CameraProvider, useCamera } from '@/features/camera/camera-provider';
@@ -11,9 +11,9 @@ import { CameraProvider, useCamera } from '@/features/camera/camera-provider';
 const subscribe = () => () => {};
 const navigation = [
   { href: '/', label: 'Trang chủ', icon: LayoutGrid },
+  { href: '/community', label: 'Cộng đồng', icon: UsersRound },
   { href: '/library', label: 'Món đã lưu', icon: BookOpen },
-  { href: '/journal', label: 'Nhật ký', icon: CalendarDays },
-  { href: '/onboarding', label: 'Hồ sơ', icon: SlidersHorizontal },
+  { href: '/account', label: 'Tài khoản', icon: UserRound },
 ];
 export function Brand() {
   return (

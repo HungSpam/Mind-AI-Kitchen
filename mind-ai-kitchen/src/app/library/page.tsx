@@ -208,6 +208,9 @@ export default function LibraryPage() {
                   >
                     <Trash2 size={17} />
                   </button>
+                  <Link className="icon-btn" href={`/community/share?recipeId=${encodeURIComponent(record.id)}`} aria-label={`Gửi chia sẻ ${record.title}`} title="Gửi chia sẻ">
+                    <ArrowUpRight size={17} />
+                  </Link>
                 </div>
               </div>
               <h2>{record.title}</h2>
