@@ -59,12 +59,18 @@ type MealLogRow = {
   recipe_snapshot: Json; servings: number; meal_type: 'Bữa Sáng' | 'Bữa Trưa' | 'Bữa Tối' | 'Bữa Phụ';
   consumed_at: string; calories: number | null; macros: Json | null; created_at: string;
 };
+type CommunityFeaturedRecipeRow = {
+  id: string; title: string; summary: string; servings: number; minutes: number; difficulty: 'Rất dễ' | 'Dễ' | 'Vừa' | 'Khó';
+  category: string; emoji: string; tone: 'tomato' | 'herb' | 'gold' | 'plum'; calories: number; tags: string[];
+  ingredients: Json; steps: Json; display_order: number; is_active: boolean; created_at: string; updated_at: string;
+};
 
 export type Database = {
   public: {
     Tables: {
       profiles: Table<ProfileRow, Partial<ProfileRow> & Pick<ProfileRow, 'user_id'>>;
       recipes: Table<RecipeRow, Partial<RecipeRow> & Pick<RecipeRow, 'id' | 'owner_id' | 'title' | 'recipe'>>;
+      community_featured_recipes: Table<CommunityFeaturedRecipeRow, Partial<CommunityFeaturedRecipeRow> & Pick<CommunityFeaturedRecipeRow, 'id' | 'title' | 'summary' | 'servings' | 'minutes' | 'difficulty' | 'category' | 'emoji' | 'tone' | 'calories'>>;
       recipe_feedback: Table<{
         user_id: string; recipe_id: string; rating: number | null; notes: string | null;
         reason_tags: string[]; cooked_at: string | null; version: number; created_at: string; updated_at: string;

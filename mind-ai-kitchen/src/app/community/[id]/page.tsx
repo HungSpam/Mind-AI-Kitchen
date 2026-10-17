@@ -6,6 +6,7 @@ import { supabaseEnvironment } from '@/lib/supabase/env';
 import type { Json } from '@/lib/supabase/database';
 import { CommunitySaveButton } from '@/features/community/save-button';
 import { ReportPostButton } from '@/features/community/report-button';
+import { featuredRecipes } from '@/features/community/featured-recipes';
 
 function record(value: Json): Record<string, Json | undefined> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
@@ -14,6 +15,35 @@ function record(value: Json): Record<string, Json | undefined> | null {
 export default async function CommunityRecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) notFound();
+  const localSample = featuredRecipes.find((recipe) => recipe.id === id);
+  if (localSample) {
+    const supabaseClient = await createClient();
+    const { data: storedSample } = supabaseClient
+      ? await supabaseClient.from('community_featured_recipes')
+        .select('id,title,summary,servings,minutes,difficulty,category,emoji,tone,calories,tags,ingredients,steps')
+        .eq('id', id).eq('is_active', true).maybeSingle()
+      : { data: null };
+    const sample = storedSample ? {
+      ...storedSample,
+      difficulty: storedSample.difficulty,
+      tone: storedSample.tone,
+      ingredients: Array.isArray(storedSample.ingredients) ? storedSample.ingredients as typeof localSample.ingredients : localSample.ingredients,
+      steps: Array.isArray(storedSample.steps) ? storedSample.steps as typeof localSample.steps : localSample.steps,
+    } : localSample;
+    return <article className="community-recipe">
+    <Link className="community-back" href="/community"><ArrowLeft size={18} /> Cộng đồng</Link>
+    <header className="compact-head">
+      <span className="eyebrow">Công thức mẫu · Bếp Mind AI</span>
+      <h1>{sample.title}</h1><p>{sample.summary}</p>
+      <div className="recipe-meta"><span><Clock3 size={17} />{sample.minutes} phút</span><span><UsersRound size={17} />{sample.servings} phần</span><span>{sample.difficulty}</span></div>
+    </header>
+    <div className={`community-detail-visual tone-${sample.tone}`} aria-hidden="true"><span>{sample.emoji}</span><div><strong>{sample.category}</strong><small>Khoảng {sample.calories} kcal mỗi phần</small></div></div>
+    <div className="notice notice-info community-sample-note"><p>Đây là công thức mẫu do Mind AI Kitchen biên soạn, không phải bài đăng của thành viên. Dinh dưỡng chỉ là ước tính tham khảo.</p></div>
+    <section className="panel"><h2>Nguyên liệu</h2><ul className="community-ingredients">{sample.ingredients.map((item) => <li key={item.name}><span>{item.name}</span><strong>{item.amount}</strong></li>)}</ul></section>
+    <section className="panel"><h2>Cách làm</h2><ol className="community-steps">{sample.steps.map((step, index) => <li key={step}><span>{index + 1}</span><p>{step}</p></li>)}</ol></section>
+    <p className="community-footnote">Hãy tự kiểm tra dị ứng và bảo đảm thực phẩm được nấu chín an toàn.</p>
+  </article>;
+  }
   const supabase = await createClient();
   if (!supabase || !supabaseEnvironment()) return <div className="empty"><h1>Cộng đồng chưa kết nối</h1><p>Công thức sẽ hiển thị khi Supabase được cấu hình.</p><Link className="btn" href="/community">Quay lại cộng đồng</Link></div>;
   const { data: post } = await supabase.from('community_posts')

@@ -88,4 +88,8 @@ npx supabase db push
 
 Thay `<project-ref>` bằng phần đứng trước `.supabase.co` trong Project URL. Kiểm tra đúng project trước khi xác nhận lệnh `db push`.
 
+### Thêm công thức mẫu Cộng đồng bằng SQL Editor
+
+Migration đầu tiên tạo các bảng tài khoản/cộng đồng. Để thêm bốn công thức biên tập vào Supabase, chạy riêng file `supabase/migrations/20261017000200_community_featured_recipes.sql` trong **SQL Editor → New query → Run**. Không chạy lại migration đầu tiên đã áp dụng. File này tạo bảng chỉ đọc cho khách chưa đăng nhập và có thể chạy lại an toàn; nó không tạo tài khoản giả và các món được gắn nhãn rõ là công thức mẫu.
+
 Tham khảo tài liệu chính thức: [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys), [Supabase migrations](https://supabase.com/docs/guides/deployment/database-migrations), [Google AI Studio API keys](https://ai.google.dev/gemini-api/docs/api-key), [Upstash Redis REST](https://upstash.com/docs/redis/howto/connect-with-upstash-redis), [Vercel environment variables](https://vercel.com/docs/environment-variables).
