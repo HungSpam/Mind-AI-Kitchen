@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Mic, MicOff, Square, Volume2, VolumeX, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Mic, MicOff, Square, Volume2, Check } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { reviewRecipe } from '@/lib/recipe-review';
 import { useCookingVoice } from '@/features/cooking/use-cooking-voice';
@@ -26,7 +26,6 @@ export default function CookingPage() {
   const [step, setStep] = useState(() =>
     recipe ? restoreStep(recipe.id, recipe.steps.length) : 0,
   );
-  const [feedback, setFeedback] = useState('');
   const safe =
     !!recipe && !recipe.audit.hasRisk && recipe.ingredients.every((item) => item.confirmed);
   const move = useCallback(
@@ -120,26 +119,6 @@ export default function CookingPage() {
         <span className="focus-step-indicator">
           Bước {step + 1} / {recipe.steps.length}
         </span>
-        <div className="focus-header-actions">
-          {/* Nút Loa / Đọc to thành tiếng */}
-          <button
-            type="button"
-            className={`focus-action-btn ${autoRead ? 'is-active' : ''}`}
-            aria-label={autoRead ? 'Tắt đọc thành tiếng' : 'Bật đọc thành tiếng'}
-            title={autoRead ? 'Đang bật tự đọc (Bấm để tắt)' : 'Tự đọc bước nấu (Bấm để bật)'}
-            onClick={() => {
-              if (autoRead) {
-                stop();
-                voice.setAutoRead(false);
-              } else {
-                voice.setAutoRead(true);
-                if (recipe) speak(recipe.steps[step].text);
-              }
-            }}
-          >
-            {autoRead ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          </button>
-        </div>
       </header>
       <div
         className="focus-progress"
@@ -158,39 +137,6 @@ export default function CookingPage() {
         )}
       </section>
       <footer className="focus-controls">
-        <section className="cooking-mic" aria-label="Điều khiển bằng giọng nói">
-          <button
-            className="btn btn-secondary cooking-mic-toggle"
-            aria-pressed={voice.listening}
-            onClick={voice.toggleListening}
-          >
-            {voice.listening ? <Mic size={22} /> : <MicOff size={22} />}
-            {voice.listening ? 'Tắt micro' : 'Bật micro rảnh tay'}
-          </button>
-          <div className="cooking-mic-state" role="status" aria-live="polite" aria-atomic="true">
-            <strong>
-              {voice.status === 'starting'
-                ? 'Đang mở micro…'
-                : voice.status === 'reconnecting'
-                  ? 'Đang kết nối lại…'
-                  : voice.status === 'hearing'
-                    ? 'Đang nhận giọng nói…'
-                    : voice.status === 'ready'
-                      ? 'Đang nghe'
-                      : 'Micro đang tắt'}
-            </strong>
-            {voice.listening && <span>Nói “bước tiếp”, “quay lại”, “đọc lại” hoặc “dừng”.</span>}
-          </div>
-        </section>
-        {voice.listening && (
-          <div className="cooking-voice-result" role="status" aria-live="polite" aria-atomic="true">
-            {voice.transcript && (
-              <p className="cooking-transcript">Đã nghe: “{voice.transcript}”</p>
-            )}
-            <p>{voice.response}</p>
-          </div>
-        )}
-        {voice.error && <Notice kind="warning">{voice.error}</Notice>}
         <div className="focus-navigation">
           <button
             className="btn btn-secondary"
@@ -219,39 +165,72 @@ export default function CookingPage() {
             </button>
           )}
         </div>
-        <button
-          className="btn focus-stop"
-          onClick={() => {
-            stop();
-            setFeedback('Đã dừng đọc.');
-          }}
-        >
-          <Square size={18} />
-          Dừng đọc ngay
-        </button>
-        <details className="voice-options">
-          <summary>
-            Giọng nói và đọc hướng dẫn <Volume2 size={17} />
-          </summary>
-          <div className="voice-option-buttons">
+        <section className="cooking-audio" aria-label="Điều khiển giọng nói">
+          <div className="cooking-audio-buttons">
             <button
-              className="btn btn-secondary"
-              aria-pressed={autoRead}
-              onClick={() => {
-                if (autoRead) stop();
-                voice.setAutoRead(!autoRead);
-              }}
+              className="btn btn-secondary cooking-mic-toggle"
+              aria-pressed={voice.listening}
+              onClick={voice.toggleListening}
             >
-              {autoRead ? 'Tắt tự đọc' : 'Bật tự đọc'}
+              {voice.listening && voice.status !== 'paused' ? (
+                <Mic size={22} />
+              ) : (
+                <MicOff size={22} />
+              )}
+              {voice.listening ? 'Tắt micro' : 'Bật micro'}
             </button>
-            <button className="btn btn-secondary" onClick={() => speak(recipe.steps[step].text)}>
-              Đọc lại
+            <button
+              className={`btn btn-secondary cooking-read${voice.speaking ? ' is-speaking' : ''}`}
+              onClick={() => (voice.speaking ? stop() : speak(recipe.steps[step].text))}
+            >
+              {voice.speaking ? <Square size={20} /> : <Volume2 size={22} />}
+              {voice.speaking ? 'Dừng đọc' : 'Đọc bước này'}
             </button>
           </div>
-        </details>
-        <p className="cooking-command-feedback" role="status" aria-live="polite">
-          {feedback}
-        </p>
+          <div className="cooking-audio-settings">
+            <p className="cooking-mic-state" role="status" aria-live="polite" aria-atomic="true">
+              <span className={`mic-status-dot is-${voice.status}`} aria-hidden="true" />
+              {voice.status === 'paused'
+                ? 'Đang đọc · Micro tạm nghỉ'
+                : voice.status === 'starting'
+                  ? 'Đang mở micro…'
+                  : voice.status === 'reconnecting'
+                    ? 'Đang kết nối lại…'
+                    : voice.status === 'processing'
+                      ? 'Đang xử lý câu nói…'
+                      : voice.status === 'hearing'
+                        ? 'Đang nghe bạn nói…'
+                        : voice.status === 'ready'
+                          ? 'Đang nghe'
+                          : 'Micro đang tắt'}
+            </p>
+            <label className="cooking-auto-read">
+              <input
+                type="checkbox"
+                checked={autoRead}
+                onChange={(event) => voice.setAutoRead(event.target.checked)}
+              />
+              Tự đọc mỗi bước
+            </label>
+          </div>
+          {voice.listening && (
+            <div className="cooking-voice-result">
+              {voice.status === 'paused' ? (
+                <p>Đọc xong, micro sẽ tự nghe lại.</p>
+              ) : (
+                <>
+                  {voice.transcript && (
+                    <p className="cooking-transcript">Đã nghe: “{voice.transcript}”</p>
+                  )}
+                  <p role="status" aria-live="polite">
+                    {voice.response || 'Nói “bước tiếp”, “quay lại” hoặc “đọc lại”.'}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {voice.error && <Notice kind="warning">{voice.error}</Notice>}
+        </section>
       </footer>
     </div>
   );

@@ -1907,83 +1907,91 @@ small,
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.cooking-mic {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 12px;
+.cooking-audio {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
-.cooking-mic-toggle {
-  min-height: 52px;
-  flex-shrink: 0;
+.cooking-audio-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cooking-audio-buttons .btn {
+  min-height: 56px;
+  padding: 12px 8px;
+  font-size: 16px;
 }
 .cooking-mic-toggle[aria-pressed='true'] {
   color: var(--green);
   background: var(--green-soft, #e8eee4);
   border-color: var(--green);
 }
-.cooking-mic-state {
-  flex: 1 1 200px;
-  display: grid;
-  gap: 4px;
-  font-size: 16px;
+.cooking-read.is-speaking {
+  color: var(--red);
+  background: #f8e9e4;
+  border-color: #ecd2c7;
 }
-.cooking-mic-state span {
-  color: var(--muted);
-  font-size: 14px;
+.cooking-audio-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 16px;
+  margin-top: 4px;
+}
+.cooking-mic-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin: 8px 0;
+}
+.mic-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.mic-status-dot.is-ready,
+.mic-status-dot.is-hearing {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft, #e8eee4);
+}
+.mic-status-dot.is-paused,
+.mic-status-dot.is-processing {
+  background: #bc6a38;
+}
+.cooking-auto-read {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cooking-auto-read input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--green);
 }
 .cooking-voice-result {
-  margin-bottom: 12px;
   overflow-wrap: anywhere;
   font-size: 16px;
+  color: var(--muted);
 }
-.cooking-voice-result p,
-.cooking-command-feedback {
+.cooking-voice-result p {
   margin: 4px 0;
 }
 .cooking-transcript {
-  color: var(--muted);
-}
-.cooking-command-feedback {
-  font-size: 16px;
+  color: var(--ink);
 }
 .focus-navigation .btn {
   min-height: 72px;
   font-size: 17px;
   padding: 16px 12px;
-}
-.focus-stop {
-  width: 100%;
-  min-height: 48px;
-  margin-top: 12px;
-  color: var(--red);
-  background: #f8e9e4;
-  border: 1px solid #ecd2c7;
-}
-.voice-options {
-  margin-top: 4px;
-}
-.voice-options summary {
-  min-height: 44px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-.voice-option-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 0;
-}
-.voice-option-buttons .btn {
-  flex: 1;
-  font-size: 13px;
-  padding: 12px;
-}
-.voice-options p {
-  font-size: 12px;
-  margin: 8px 0;
 }
 .focus-controls .notice {
   margin: 12px 0;

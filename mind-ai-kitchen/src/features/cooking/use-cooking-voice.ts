@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { acceptRecognition, type VoiceCommand } from './commands';
+import { matchCommand, type VoiceCommand } from './commands';
 
 interface Recognition {
   lang: string;
@@ -8,6 +8,7 @@ interface Recognition {
   interimResults: boolean;
   maxAlternatives: number;
   start(): void;
+  stop(): void;
   abort(): void;
   onresult:
     | ((event: {
@@ -29,63 +30,102 @@ type SpeechWindow = Window & {
   SpeechRecognition?: new () => Recognition;
   webkitSpeechRecognition?: new () => Recognition;
 };
+type VoiceStatus =
+  'off' | 'starting' | 'ready' | 'hearing' | 'processing' | 'paused' | 'reconnecting';
+type Session = { dispose(): void; pause(): void; resume(): void };
 
 export function useCookingVoice(
   onCommand: (command: VoiceCommand, read: (text: string) => void) => string | void,
 ) {
+  // listening records the user's choice; status records actual microphone activity.
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const [error, setError] = useState('');
   const [transcript, setTranscript] = useState('');
-  const [status, setStatus] = useState<'off' | 'starting' | 'ready' | 'hearing' | 'reconnecting'>(
-    'off',
-  );
+  const [status, setStatus] = useState<VoiceStatus>('off');
   const [response, setResponse] = useState('');
-  const session = useRef<(() => void) | null>(null);
+  const session = useRef<Session | null>(null);
   const handler = useRef(onCommand);
   const token = useRef(0);
-  const stopped = useRef(false);
+  const speechBusy = useRef(false);
+  const speechTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   useEffect(() => {
     handler.current = onCommand;
   }, [onCommand]);
+
   const stop = useCallback(() => {
     token.current++;
+    clearTimeout(speechTimer.current);
+    speechBusy.current = false;
+    utteranceRef.current = null;
     window.speechSynthesis?.cancel();
     setSpeaking(false);
+    session.current?.resume();
   }, []);
+
   const speak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) {
-      setError('Trình duyệt chưa hỗ trợ đọc văn bản. Bạn vẫn có thể đọc và chuyển bước bằng nút.');
+    if (!text.trim()) return;
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+      setError('Trình duyệt chưa hỗ trợ đọc văn bản. Bạn vẫn có thể dùng nút chuyển bước.');
       return;
     }
-    token.current++;
-    const current = token.current;
+    const current = ++token.current;
+    clearTimeout(speechTimer.current);
+    // Pause before enqueueing TTS, not after its asynchronous start event.
+    speechBusy.current = true;
+    session.current?.pause();
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'vi-VN';
-    utterance.rate = 0.95;
-    const voice = window.speechSynthesis
-      .getVoices()
-      .find((v) => v.lang.toLowerCase().startsWith('vi'));
-    if (voice) utterance.voice = voice;
-    utterance.onstart = () => {
-      if (current === token.current) setSpeaking(true);
-    };
-    utterance.onend = () => {
-      if (current === token.current) setSpeaking(false);
-    };
-    utterance.onerror = (event) => {
+    setSpeaking(true);
+    setError('');
+    const finish = (message?: string) => {
       if (current !== token.current) return;
+      token.current++;
+      clearTimeout(speechTimer.current);
+      speechBusy.current = false;
+      utteranceRef.current = null;
       setSpeaking(false);
-      if (!['canceled', 'interrupted'].includes(event.error))
-        setError('Không đọc được giọng nói. Thử tắt/bật đọc hoặc dùng nút điều khiển.');
+      if (message) setError(message);
+      session.current?.resume();
     };
-    window.speechSynthesis.speak(utterance);
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = utterance;
+      utterance.lang = 'vi-VN';
+      utterance.rate = 0.95;
+      const voice = window.speechSynthesis
+        .getVoices()
+        .find((v) => v.lang.toLowerCase().startsWith('vi'));
+      if (voice) utterance.voice = voice;
+      const timedOut = () => {
+        if (current !== token.current) return;
+        finish('Không phát được hướng dẫn. Bấm “Đọc bước này” để thử lại.');
+        window.speechSynthesis.cancel();
+      };
+      speechTimer.current = setTimeout(timedOut, 8000);
+      utterance.onstart = () => {
+        if (current !== token.current) return;
+        clearTimeout(speechTimer.current);
+        // Recover even if the browser loses its completion event.
+        speechTimer.current = setTimeout(timedOut, Math.max(15000, text.length * 180 + 10000));
+      };
+      utterance.onend = () => finish();
+      utterance.onerror = (event) =>
+        finish(
+          ['canceled', 'interrupted'].includes(event.error)
+            ? undefined
+            : 'Không đọc được hướng dẫn. Bấm “Đọc bước này” để thử lại.',
+        );
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      finish('Không đọc được hướng dẫn. Bạn vẫn có thể dùng nút chuyển bước.');
+    }
   }, []);
+
   function toggleListening() {
     if (session.current) {
-      session.current();
+      session.current.dispose();
       session.current = null;
       setListening(false);
       setStatus('off');
@@ -107,43 +147,35 @@ export function useCookingVoice(
     setTranscript('');
     setResponse('');
     setListening(true);
-    setStatus('starting');
-    let recognition: Recognition;
-    try {
-      recognition = new Constructor();
-    } catch {
-      setListening(false);
-      setStatus('off');
-      setError(
-        'Không khởi tạo được dịch vụ nhận giọng nói. Thử tải lại trang hoặc dùng nút chuyển bước.',
-      );
-      return;
-    }
-    recognition.lang = 'vi-VN';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
     let cancelled = false;
+    let recognition: Recognition | null = null;
     let restart: ReturnType<typeof setTimeout> | undefined;
     let watchdog: ReturnType<typeof setTimeout> | undefined;
+    let silence: ReturnType<typeof setTimeout> | undefined;
+    let completion: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
-    const handled = new Set<number>();
+    const clearCaptureTimers = () => {
+      clearTimeout(watchdog);
+      clearTimeout(silence);
+      clearTimeout(completion);
+    };
+    const release = () => {
+      clearCaptureTimers();
+      const old = recognition;
+      recognition = null;
+      if (!old) return;
+      old.onend = old.onstart = old.onspeechstart = old.onspeechend = old.onnomatch = null;
+      old.onresult = old.onerror = null;
+      try {
+        old.abort();
+      } catch {
+        /* Already closed. */
+      }
+    };
     const dispose = () => {
       cancelled = true;
       clearTimeout(restart);
-      clearTimeout(watchdog);
-      recognition.onend = null;
-      recognition.onstart = null;
-      recognition.onspeechstart = null;
-      recognition.onspeechend = null;
-      recognition.onnomatch = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      try {
-        recognition.abort();
-      } catch {
-        // Some implementations throw if startup failed before opening a session.
-      }
+      release();
     };
     const fail = (message: string) => {
       dispose();
@@ -152,117 +184,186 @@ export function useCookingVoice(
       setStatus('off');
       setError(message);
     };
+    const resume = () => {
+      clearTimeout(restart);
+      if (cancelled || speechBusy.current || recognition) return;
+      setStatus('reconnecting');
+      // Allow the tail of the speaker audio to decay before opening the mic.
+      restart = setTimeout(start, 400);
+    };
+    const pause = () => {
+      clearTimeout(restart);
+      release();
+      setTranscript('');
+      setResponse('');
+      setStatus('paused');
+    };
     const start = () => {
-      if (cancelled) return;
-      handled.clear();
-      stopped.current = false;
+      if (cancelled || speechBusy.current || recognition) return;
+      let mic: Recognition;
+      try {
+        mic = new Constructor();
+      } catch {
+        fail(
+          'Không khởi tạo được dịch vụ nhận giọng nói. Thử tải lại trang hoặc dùng nút chuyển bước.',
+        );
+        return;
+      }
+      recognition = mic;
+      const active = () => !cancelled && !speechBusy.current && recognition === mic;
+      let handled = false;
+      let finishing = false;
+      let heard = false;
+      mic.lang = 'vi-VN';
+      mic.continuous = false;
+      mic.interimResults = true;
+      mic.maxAlternatives = 1;
+      setStatus(failures ? 'reconnecting' : 'starting');
+      // stop() asks the recognition service for a final result; abort() discards it.
+      const finishSentence = () => {
+        if (!active() || finishing) return;
+        finishing = true;
+        clearTimeout(silence);
+        if (!handled) setStatus('processing');
+        completion = setTimeout(() => {
+          if (!active()) return;
+          if (!handled) setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
+          release();
+          resume();
+        }, 4000);
+        try {
+          mic.stop();
+        } catch {
+          release();
+          setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
+          resume();
+        }
+      };
+      mic.onstart = () => {
+        if (!active()) return;
+        clearTimeout(watchdog);
+        setStatus('ready');
+        setError((message) =>
+          message.startsWith('Không kết nối được dịch vụ nhận giọng nói.') ? '' : message,
+        );
+      };
+      mic.onspeechstart = () => {
+        if (!active() || finishing) return;
+        clearTimeout(silence);
+        heard = true;
+        setTranscript('');
+        setResponse('');
+        setStatus('hearing');
+      };
+      mic.onspeechend = () => {
+        if (active()) finishSentence();
+      };
+      mic.onnomatch = () => {
+        if (!active()) return;
+        handled = true;
+        setResponse('Chưa hiểu lệnh. Thử nói “bước tiếp” hoặc “quay lại”.');
+        finishSentence();
+      };
+      mic.onresult = (event) => {
+        if (!active() || handled) return;
+        failures = 0;
+        // Single-utterance mode: combine segments before acting, so a later correction wins.
+        let text = '';
+        let final = true;
+        for (let i = 0; i < event.results.length; i++) {
+          text += ' ' + event.results[i][0].transcript;
+          final &&= event.results[i].isFinal;
+        }
+        text = text.trim();
+        if (!text) return;
+        heard = true;
+        setTranscript(text);
+        clearTimeout(silence);
+        if (!final) {
+          setStatus(finishing ? 'processing' : 'hearing');
+          // Fallback for engines that omit speechend. Never execute partial transcripts.
+          if (!finishing) silence = setTimeout(finishSentence, 1600);
+          return;
+        }
+        handled = true;
+        setStatus('processing');
+        const command = matchCommand(text);
+        if (command) {
+          if (command === 'stop') stop();
+          const feedback = handler.current(command, speak);
+          setResponse(
+            feedback ||
+              {
+                next: 'Đã chuyển sang bước tiếp theo.',
+                prev: 'Đã quay lại bước trước.',
+                repeat: 'Đang đọc lại bước này.',
+                stop: 'Đã dừng đọc.',
+              }[command],
+          );
+        } else {
+          setResponse('Chưa thực hiện lệnh. Thử nói “bước tiếp” hoặc “quay lại”.');
+        }
+        finishSentence();
+      };
+      mic.onerror = (event) => {
+        if (!active()) return;
+        clearCaptureTimers();
+        if (event.error === 'no-speech') {
+          setResponse('Chưa nghe thấy tiếng nói. Hãy nói gần micro hơn.');
+          release();
+          resume();
+          return;
+        }
+        const messages: Record<string, string> = {
+          'not-allowed':
+            'Chưa được cấp quyền micro. Cho phép micro trong cài đặt trang của trình duyệt rồi bật lại.',
+          'service-not-allowed':
+            'Trình duyệt không cho phép dịch vụ nhận giọng nói. Thử mở bằng Chrome hoặc dùng nút chuyển bước.',
+          'audio-capture':
+            'Không thu được âm thanh. Kiểm tra micro đã kết nối và quyền micro của thiết bị.',
+          'language-not-supported':
+            'Dịch vụ nhận giọng nói này chưa hỗ trợ tiếng Việt. Thử trình duyệt khác hoặc dùng nút chuyển bước.',
+        };
+        if (messages[event.error]) return fail(messages[event.error]);
+        failures++;
+        const message =
+          event.error === 'network'
+            ? 'Không kết nối được dịch vụ nhận giọng nói. Kiểm tra mạng hoặc thử mở bằng Chrome.'
+            : 'Dịch vụ nhận giọng nói bị gián đoạn. Bấm bật micro để thử lại.';
+        if (failures >= 3 || event.error !== 'network') return fail(message);
+        release();
+        setError(message + ' Đang thử kết nối lại…');
+        setStatus('reconnecting');
+        restart = setTimeout(start, 1000 * failures);
+      };
+      mic.onend = () => {
+        if (!active()) return;
+        if (heard && !handled) setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
+        release();
+        resume();
+      };
       watchdog = setTimeout(() => {
-        fail('Micro chưa sẵn sàng. Kiểm tra quyền micro và kết nối mạng, rồi bấm bật lại.');
+        if (active())
+          fail('Micro chưa sẵn sàng. Kiểm tra quyền micro và kết nối mạng, rồi bấm bật lại.');
       }, 8000);
       try {
-        recognition.start();
+        mic.start();
       } catch {
         fail('Không mở được micro. Kiểm tra quyền micro trong trình duyệt rồi thử lại.');
       }
     };
-    recognition.onstart = () => {
-      if (cancelled) return;
-      clearTimeout(watchdog);
-      setStatus('ready');
-      setError('');
-    };
-    recognition.onspeechstart = () => {
-      if (!cancelled) setStatus('hearing');
-    };
-    recognition.onspeechend = () => {
-      if (!cancelled) setStatus('ready');
-    };
-    recognition.onnomatch = () => {
-      if (!cancelled) setResponse('Chưa hiểu lệnh. Hãy nói lại.');
-    };
-    recognition.onresult = (event) => {
-      if (cancelled) return;
-      failures = 0;
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0].transcript;
-        setTranscript(text);
-        setStatus(result.isFinal ? 'ready' : 'hearing');
-        if (handled.has(i)) continue;
-        const command = acceptRecognition(text, result.isFinal);
-        if (!command) {
-          setResponse(result.isFinal ? 'Chưa thực hiện lệnh. Hãy nói lại.' : 'Đang nhận câu nói…');
-          if (result.isFinal) handled.add(i);
-          continue;
-        }
-        if (result.isFinal) {
-          handled.add(i);
-          stopped.current = false;
-        }
-        if (!result.isFinal && command === 'stop') {
-          if (!stopped.current) {
-            stop();
-            stopped.current = true;
-            setResponse('Đã dừng đọc.');
-          }
-          continue;
-        }
-        stop();
-        const feedback = handler.current(command, speak);
-        setResponse(
-          feedback ||
-            {
-              next: 'Đã nhận: bước tiếp.',
-              prev: 'Đã nhận: quay lại.',
-              repeat: 'Đang đọc lại bước này.',
-              stop: 'Đã dừng đọc.',
-            }[command],
-        );
-      }
-    };
-    recognition.onerror = (event) => {
-      if (cancelled) return;
-      clearTimeout(watchdog);
-      if (event.error === 'no-speech') {
-        setResponse('Chưa nghe thấy tiếng nói. Hãy nói gần micro hơn.');
-        return;
-      }
-      failures++;
-      const messages: Record<string, string> = {
-        'not-allowed':
-          'Chưa được cấp quyền micro. Cho phép micro trong cài đặt trang của trình duyệt rồi bật lại.',
-        'service-not-allowed':
-          'Trình duyệt không cho phép dịch vụ nhận giọng nói. Thử mở bằng Chrome hoặc dùng nút chuyển bước.',
-        'audio-capture':
-          'Không thu được âm thanh. Kiểm tra micro đã kết nối và quyền micro của thiết bị.',
-        'language-not-supported':
-          'Dịch vụ nhận giọng nói này chưa hỗ trợ tiếng Việt. Thử trình duyệt khác hoặc dùng nút chuyển bước.',
-      };
-      if (messages[event.error]) return fail(messages[event.error]);
-      const message =
-        event.error === 'network'
-          ? 'Không kết nối được dịch vụ nhận giọng nói. Kiểm tra mạng hoặc thử mở bằng Chrome.'
-          : 'Dịch vụ nhận giọng nói bị gián đoạn. Bấm bật micro để thử lại.';
-      if (failures >= 3 || event.error !== 'network') return fail(message);
-      setError(message + ' Đang thử kết nối lại…');
-      setStatus('reconnecting');
-    };
-    recognition.onend = () => {
-      if (cancelled) return;
-      clearTimeout(watchdog);
-      clearTimeout(restart);
-      setStatus('reconnecting');
-      restart = setTimeout(start, failures ? 1000 * failures : 250);
-    };
-    session.current = dispose;
-    // Start inside the button gesture; some browsers require user activation.
-    start();
+    session.current = { dispose, pause, resume };
+    if (speechBusy.current) pause();
+    else start(); // Preserve user activation for the first permission request.
   }
   useEffect(
     () => () => {
       token.current++;
-      session.current?.();
+      clearTimeout(speechTimer.current);
+      session.current?.dispose();
       session.current = null;
+      speechBusy.current = false;
+      utteranceRef.current = null;
       window.speechSynthesis?.cancel();
     },
     [],
