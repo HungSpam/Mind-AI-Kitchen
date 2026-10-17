@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next';
 const production = process.env.NODE_ENV === 'production';
+const isVercel = Boolean(process.env.VERCEL);
 const nextConfig: NextConfig = {
-  distDir: production ? '.next-production' : '.next',
+  distDir: isVercel ? '.next' : production ? '.next-production' : '.next',
   poweredByHeader: false,
   async headers() {
     return [
