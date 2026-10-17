@@ -2,9 +2,18 @@ import { createHash } from 'node:crypto';
 import { ApiError } from './http';
 
 const local = new Map<string, { count: number; expires: number }>();
+let warnedLocal = false;
 export async function rateLimit(request: Request) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Keep each provider's credentials together; never mix the two prefixes.
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  const url = upstashUrl || upstashToken ? upstashUrl : process.env.KV_REST_API_URL?.trim();
+  const token = upstashUrl || upstashToken ? upstashToken : process.env.KV_REST_API_TOKEN?.trim();
+  if (
+    Boolean(url) !== Boolean(token) ||
+    (!url && process.env.RATE_LIMIT_REQUIRE_REDIS?.trim() === 'true')
+  )
+    throw new ApiError(503, 'LIMITER_CONFIG', 'Dịch vụ AI chưa được cấu hình đầy đủ.');
   const now = Date.now();
   // Only use a proxy-controlled IP header when explicitly configured by the operator.
   const ip = process.env.TRUSTED_IP_HEADER
@@ -26,7 +35,8 @@ export async function rateLimit(request: Request) {
         cache: 'no-store',
       });
       const data = await response.json();
-      if (!response.ok || typeof data.result !== 'number') throw new Error('limiter');
+      if (!response.ok || !Number.isSafeInteger(data.result) || data.result < 1)
+        throw new Error('limiter');
       if (data.result > 10)
         throw new ApiError(429, 'RATE_LIMIT', 'Bạn gửi yêu cầu quá nhanh. Thử lại sau một phút.');
       return;
@@ -39,9 +49,13 @@ export async function rateLimit(request: Request) {
       );
     }
   }
-  if (process.env.NODE_ENV === 'production')
-    throw new ApiError(503, 'LIMITER_CONFIG', 'Dịch vụ AI chưa được cấu hình đầy đủ.');
-  for (const [k, v] of local) if (v.expires < now) local.delete(k);
+  if (process.env.NODE_ENV === 'production' && !warnedLocal) {
+    console.warn(
+      '[rate-limit] Redis not configured; using a per-instance limit of 10 requests/minute.',
+    );
+    warnedLocal = true;
+  }
+  for (const [k, v] of local) if (v.expires <= now) local.delete(k);
   const entry = local.get(key) || { count: 0, expires: now + 60_000 };
   entry.count++;
   local.set(key, entry);
