@@ -1897,8 +1897,8 @@ small,
   overflow-wrap: anywhere;
 }
 .focus-controls {
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  flex-shrink: 0;
   padding: 12px 0 0;
   background: var(--paper);
 }
@@ -1906,6 +1906,47 @@ small,
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+.cooking-mic {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.cooking-mic-toggle {
+  min-height: 52px;
+  flex-shrink: 0;
+}
+.cooking-mic-toggle[aria-pressed='true'] {
+  color: var(--green);
+  background: var(--green-soft, #e8eee4);
+  border-color: var(--green);
+}
+.cooking-mic-state {
+  flex: 1 1 200px;
+  display: grid;
+  gap: 4px;
+  font-size: 16px;
+}
+.cooking-mic-state span {
+  color: var(--muted);
+  font-size: 14px;
+}
+.cooking-voice-result {
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.cooking-voice-result p,
+.cooking-command-feedback {
+  margin: 4px 0;
+}
+.cooking-transcript {
+  color: var(--muted);
+}
+.cooking-command-feedback {
+  font-size: 16px;
 }
 .focus-navigation .btn {
   min-height: 72px;

@@ -41,14 +41,15 @@ export default function CookingPage() {
       if (!safe) return;
       if (action === 'next') {
         move(1);
-        setFeedback('Bước tiếp theo.');
+        return step === recipe!.steps.length - 1
+          ? 'Đây là bước cuối. Bấm “Xong món” khi nấu xong.'
+          : 'Đã chuyển sang bước tiếp theo.';
       }
       if (action === 'prev') {
         move(-1);
-        setFeedback('Bước trước.');
+        return step === 0 ? 'Bạn đang ở bước đầu tiên.' : 'Đã quay lại bước trước.';
       }
       if (action === 'repeat') read(recipe?.steps[step]?.text || '');
-      if (action === 'stop') setFeedback('Đã dừng đọc.');
     },
     [move, recipe, step, safe],
   );
@@ -138,22 +139,6 @@ export default function CookingPage() {
           >
             {autoRead ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
-
-          {/* Nút Mic / Giọng nói rảnh tay */}
-          <button
-            type="button"
-            className={`focus-action-btn ${voice.listening ? 'is-active is-listening' : ''}`}
-            aria-label={voice.listening ? 'Tắt micro rảnh tay' : 'Bật micro rảnh tay'}
-            title={
-              voice.listening
-                ? 'Micro đang nghe lệnh giọng nói (Bấm để tắt)'
-                : 'Bật micro điều khiển giọng nói (Bấm để bật)'
-            }
-            onClick={voice.toggleListening}
-          >
-            {voice.listening ? <Mic size={20} /> : <MicOff size={20} />}
-            {voice.listening && <span className="mic-pulse-dot" />}
-          </button>
         </div>
       </header>
       <div
@@ -173,6 +158,39 @@ export default function CookingPage() {
         )}
       </section>
       <footer className="focus-controls">
+        <section className="cooking-mic" aria-label="Điều khiển bằng giọng nói">
+          <button
+            className="btn btn-secondary cooking-mic-toggle"
+            aria-pressed={voice.listening}
+            onClick={voice.toggleListening}
+          >
+            {voice.listening ? <Mic size={22} /> : <MicOff size={22} />}
+            {voice.listening ? 'Tắt micro' : 'Bật micro rảnh tay'}
+          </button>
+          <div className="cooking-mic-state" role="status" aria-live="polite" aria-atomic="true">
+            <strong>
+              {voice.status === 'starting'
+                ? 'Đang mở micro…'
+                : voice.status === 'reconnecting'
+                  ? 'Đang kết nối lại…'
+                  : voice.status === 'hearing'
+                    ? 'Đang nhận giọng nói…'
+                    : voice.status === 'ready'
+                      ? 'Đang nghe'
+                      : 'Micro đang tắt'}
+            </strong>
+            {voice.listening && <span>Nói “bước tiếp”, “quay lại”, “đọc lại” hoặc “dừng”.</span>}
+          </div>
+        </section>
+        {voice.listening && (
+          <div className="cooking-voice-result" role="status" aria-live="polite" aria-atomic="true">
+            {voice.transcript && (
+              <p className="cooking-transcript">Đã nghe: “{voice.transcript}”</p>
+            )}
+            <p>{voice.response}</p>
+          </div>
+        )}
+        {voice.error && <Notice kind="warning">{voice.error}</Notice>}
         <div className="focus-navigation">
           <button
             className="btn btn-secondary"
@@ -226,23 +244,14 @@ export default function CookingPage() {
             >
               {autoRead ? 'Tắt tự đọc' : 'Bật tự đọc'}
             </button>
-            <button
-              className="btn btn-secondary"
-              aria-pressed={voice.listening}
-              onClick={voice.toggleListening}
-            >
-              {voice.listening ? 'Tắt micro' : 'Bật micro rảnh tay'}
-            </button>
             <button className="btn btn-secondary" onClick={() => speak(recipe.steps[step].text)}>
               Đọc lại
             </button>
           </div>
-          <p className="small muted">Nói “tiếp”, “quay lại”, “đọc lại” hoặc “dừng”.</p>
         </details>
-        {voice.error && <Notice kind="warning">{voice.error}</Notice>}
-        <span className="sr-only" aria-live="polite">
+        <p className="cooking-command-feedback" role="status" aria-live="polite">
           {feedback}
-        </span>
+        </p>
       </footer>
     </div>
   );
