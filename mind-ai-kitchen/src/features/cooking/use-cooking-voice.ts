@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { matchCommand, type VoiceCommand } from './commands';
+import { matchCommand, matchEndedCommand, type VoiceCommand } from './commands';
 
 interface Recognition {
   lang: string;
@@ -214,29 +214,57 @@ export function useCookingVoice(
       let handled = false;
       let finishing = false;
       let heard = false;
+      let latestText = '';
       mic.lang = 'vi-VN';
       mic.continuous = false;
       mic.interimResults = true;
       mic.maxAlternatives = 1;
       setStatus(failures ? 'reconnecting' : 'starting');
+      const processSentence = (fallback = false) => {
+        if (!active() || handled) return;
+        handled = true;
+        const command = fallback ? matchEndedCommand(latestText) : matchCommand(latestText);
+        if (command) {
+          if (command === 'stop') stop();
+          const feedback = handler.current(command, speak);
+          setResponse(
+            feedback ||
+              {
+                next: 'Đã chuyển sang bước tiếp theo.',
+                prev: 'Đã quay lại bước trước.',
+                repeat: 'Đang đọc lại bước này.',
+                stop: 'Đã dừng đọc.',
+              }[command],
+          );
+        } else {
+          setResponse(
+            latestText
+              ? fallback
+                ? 'Chưa hiểu lệnh. Thử nói “bước tiếp” hoặc “quay lại”.'
+                : 'Chưa thực hiện lệnh. Thử nói “bước tiếp” hoặc “quay lại”.'
+              : 'Chưa nghe rõ. Bạn nói lại nhé.',
+          );
+        }
+      };
+      const closeSentence = () => {
+        if (!active()) return;
+        if (heard && !handled) processSentence(true);
+        // Reading a repeat command can replace this capture session synchronously.
+        if (!active()) return;
+        release();
+        resume();
+      };
       // stop() asks the recognition service for a final result; abort() discards it.
       const finishSentence = () => {
         if (!active() || finishing) return;
         finishing = true;
         clearTimeout(silence);
         if (!handled) setStatus('processing');
-        completion = setTimeout(() => {
-          if (!active()) return;
-          if (!handled) setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
-          release();
-          resume();
-        }, 4000);
+        completion = setTimeout(closeSentence, 900);
         try {
           mic.stop();
         } catch {
-          release();
-          setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
-          resume();
+          closeSentence();
         }
       };
       mic.onstart = () => {
@@ -275,34 +303,19 @@ export function useCookingVoice(
           final &&= event.results[i].isFinal;
         }
         text = text.trim();
+        latestText = text;
         if (!text) return;
         heard = true;
         setTranscript(text);
         clearTimeout(silence);
         if (!final) {
           setStatus(finishing ? 'processing' : 'hearing');
-          // Fallback for engines that omit speechend. Never execute partial transcripts.
+          // End capture after inactivity; do not execute while the user is speaking.
           if (!finishing) silence = setTimeout(finishSentence, 1600);
           return;
         }
-        handled = true;
         setStatus('processing');
-        const command = matchCommand(text);
-        if (command) {
-          if (command === 'stop') stop();
-          const feedback = handler.current(command, speak);
-          setResponse(
-            feedback ||
-              {
-                next: 'Đã chuyển sang bước tiếp theo.',
-                prev: 'Đã quay lại bước trước.',
-                repeat: 'Đang đọc lại bước này.',
-                stop: 'Đã dừng đọc.',
-              }[command],
-          );
-        } else {
-          setResponse('Chưa thực hiện lệnh. Thử nói “bước tiếp” hoặc “quay lại”.');
-        }
+        processSentence();
         finishSentence();
       };
       mic.onerror = (event) => {
@@ -336,12 +349,7 @@ export function useCookingVoice(
         setStatus('reconnecting');
         restart = setTimeout(start, 1000 * failures);
       };
-      mic.onend = () => {
-        if (!active()) return;
-        if (heard && !handled) setResponse('Chưa nhận đủ câu. Bạn nói lại nhé.');
-        release();
-        resume();
-      };
+      mic.onend = closeSentence;
       watchdog = setTimeout(() => {
         if (active())
           fail('Micro chưa sẵn sàng. Kiểm tra quyền micro và kết nối mạng, rồi bấm bật lại.');
